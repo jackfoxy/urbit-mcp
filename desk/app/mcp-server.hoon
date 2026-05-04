@@ -173,16 +173,31 @@
     |=  [eyre-id=@ta req=inbound-request:eyre]
     ^-  (quip card _this)
     ::  OAuth discovery probes from MCP clients land here via the
-    ::  /.well-known binding. Return a JSON 404 so the client can
-    ::  proceed with the auth scheme actually configured (e.g. cookie),
-    ::  rather than choking on Eyre's HTML fallback.
+    ::  /.well-known binding. We don't speak OAuth; auth is by
+    ::  Cookie or session header per Eyre. Return RFC 9728 protected-
+    ::  resource metadata with no authorization servers, signalling
+    ::  to the client that it should proceed with the auth scheme
+    ::  it already has (rather than triggering an OAuth handshake
+    ::  that ends in Eyre's HTML login fallback).
     ::
     =/  url-tape=tape  (trip url.request.req)
     ?:  ?&  (gte (lent url-tape) 12)
             =("/.well-known" (scag 12 url-tape))
         ==
+      =/  host=@t
+        =/  h=(unit @t)
+          (get-header:http 'host' header-list.request.req)
+        ?~(h 'localhost' u.h)
+      =/  resource-uri=@t
+        (rap 3 'http://' host '/mcp' ~)
+      =/  meta=json
+        %-  pairs:enjs:format
+        :~  ['resource' s+resource-uri]
+            ['authorization_servers' a+~]
+            ['bearer_methods_supported' a+~[s+'header']]
+        ==
       :_  this
-      (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
+      (json-response eyre-id 200 meta)
     ?.  authenticated.req
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
