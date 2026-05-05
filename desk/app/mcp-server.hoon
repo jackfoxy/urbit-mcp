@@ -36,6 +36,25 @@
     %-  as-octt:mimes:html
     (trip (en:json:html json))
 ::
+::  +json-response: respond with status code and JSON body
+::    Used for endpoints that must return JSON (e.g. OAuth discovery
+::    stubs at /.well-known/*) so MCP clients that probe per spec do
+::    not choke trying to parse Eyre's HTML fallback as JSON.
+::
+++  json-response
+  |=  [eyre-id=@ta status=@ud =json]
+  ^-  (list card)
+  %+  give-simple-payload:app:server
+    eyre-id
+  ^-  simple-payload:http
+  :-  :-  status
+      :~  ['content-type' 'application/json']
+          ['cache-control' 'no-cache']
+      ==
+    %-  some
+    %-  as-octt:mimes:html
+    (trip (en:json:html json))
+::
 +$  card  card:agent:gall
 +$  versioned-state
   $%  state-0
@@ -67,10 +86,20 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  :-  ~
+  =/  oauth-card=card
+    :*  %pass  /eyre/connect/oauth
+        %arvo  %e  %connect
+        [[~ ~['oauth']] dap.bowl]
+    ==
+  =/  well-known-card=card
+    :*  %pass  /eyre/connect/well-known
+        %arvo  %e  %connect
+        [[~ ~['.well-known']] dap.bowl]
+    ==
   ?-    -.old
       %0
-    this(state old)
+    :_  this(state [%0 +.old])
+    :~  well-known-card  oauth-card  ==
   ==
 ::
 ++  on-init
@@ -79,6 +108,25 @@
   :~  :*  %pass  /eyre/connect
           %arvo  %e  %connect
           [`/mcp dap.bowl]
+      ==
+      ::  Bind /.well-known so we can stub OAuth discovery endpoints.
+      ::  MCP clients probe these per the draft auth spec; without a
+      ::  binding Eyre redirects to /apps/landscape/ (HTML), and the
+      ::  client errors trying to parse HTML as JSON.
+      ::
+      :*  %pass  /eyre/connect/well-known
+          %arvo  %e  %connect
+          [[~ ~['.well-known']] dap.bowl]
+      ==
+      ::  Bind /oauth so DCR/authorize/token probes from MCP clients
+      ::  get a clean RFC 6749 JSON error rather than Eyre's HTML
+      ::  login fallback. Without this the Claude Code /mcp dialog's
+      ::  OAuth flow disconnects the session even when cookie auth
+      ::  is configured.
+      ::
+      :*  %pass  /eyre/connect/oauth
+          %arvo  %e  %connect
+          [[~ ~['oauth']] dap.bowl]
       ==
       :*  %pass  ~
           %arvo  %k
@@ -125,6 +173,74 @@
   ++  handle-req
     |=  [eyre-id=@ta req=inbound-request:eyre]
     ^-  (quip card _this)
+    ::  OAuth discovery probes from MCP clients land here via the
+    ::  /.well-known binding. We don't speak OAuth; auth is by
+    ::  Cookie or session header per Eyre. Return RFC 9728 protected-
+    ::  resource metadata with no authorization servers, signalling
+    ::  to the client that it should proceed with the auth scheme
+    ::  it already has (rather than triggering an OAuth handshake
+    ::  that ends in Eyre's HTML login fallback).
+    ::
+    =/  url-tape=tape  (trip url.request.req)
+    =/  host=@t
+      =/  h=(unit @t)
+        (get-header:http 'host' header-list.request.req)
+      ?~(h 'localhost' u.h)
+    =/  base=@t  (rap 3 'http://' host ~)
+    ::  RFC 9728 protected-resource metadata at the spec'd path.
+    ::  Empty authorization_servers + bearer_methods=header tells
+    ::  the client to use the auth header it already has.
+    ::
+    ?:  =("/.well-known/oauth-protected-resource" url-tape)
+      =/  meta=json
+        %-  pairs:enjs:format
+        :~  ['resource' s+(cat 3 base '/mcp')]
+            ['authorization_servers' a+~]
+            ['bearer_methods_supported' a+~[s+'header']]
+        ==
+      :_  this
+      (json-response eyre-id 200 meta)
+    ::  RFC 8414 authorization-server metadata. We don't actually
+    ::  speak OAuth, but a Zod-valid stub keeps the client out of
+    ::  parse-error territory; the OAuth flow itself fails cleanly
+    ::  at the /oauth/* endpoints below.
+    ::
+    ?:  =("/.well-known/oauth-authorization-server" url-tape)
+      =/  meta=json
+        %-  pairs:enjs:format
+        :~  ['issuer' s+base]
+            ['authorization_endpoint' s+(cat 3 base '/oauth/authorize')]
+            ['token_endpoint' s+(cat 3 base '/oauth/token')]
+            ['registration_endpoint' s+(cat 3 base '/oauth/register')]
+            ['response_types_supported' a+~[s+'code']]
+            ['grant_types_supported' a+~[s+'authorization_code']]
+            ['code_challenge_methods_supported' a+~[s+'S256']]
+            ['token_endpoint_auth_methods_supported' a+~[s+'none']]
+        ==
+      :_  this
+      (json-response eyre-id 200 meta)
+    ::  Any other /.well-known/* probe gets a JSON 404.
+    ::
+    ?:  ?&  (gte (lent url-tape) 12)
+            =("/.well-known" (scag 12 url-tape))
+        ==
+      :_  this
+      (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
+    ::  OAuth endpoint stubs. We don't speak OAuth; auth is via the
+    ::  Cookie/header configured on the MCP client. Returning a
+    ::  proper RFC 6749 JSON error keeps clients (e.g. Claude Code's
+    ::  /mcp dialog) from choking on Eyre's HTML login fallback.
+    ::
+    ?:  ?&  (gte (lent url-tape) 6)
+            =("/oauth" (scag 6 url-tape))
+        ==
+      =/  err=json
+        %-  pairs:enjs:format
+        :~  ['error' s+'unsupported_response_type']
+            ['error_description' s+'this server does not implement OAuth']
+        ==
+      :_  this
+      (json-response eyre-id 400 err)
     ?.  authenticated.req
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
