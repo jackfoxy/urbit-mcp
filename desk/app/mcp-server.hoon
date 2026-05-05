@@ -57,29 +57,10 @@
 ::
 +$  card  card:agent:gall
 +$  versioned-state
-  $%  state-2
-      state-1
-      state-0
+  $%  state-0
   ==
 +$  state-0
   $:  %0
-      tools=(set tool:mcp)
-      prompts=(set prompt:mcp)
-      resources=(set resource:mcp)
-  ==
-::  state-1: same shape as state-0, version bump binds /.well-known
-::  on upgrade.
-::
-+$  state-1
-  $:  %1
-      tools=(set tool:mcp)
-      prompts=(set prompt:mcp)
-      resources=(set resource:mcp)
-  ==
-::  state-2: same shape, version bump binds /oauth on upgrade.
-::
-+$  state-2
-  $:  %2
       tools=(set tool:mcp)
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
@@ -116,18 +97,7 @@
         [[~ ~['.well-known']] dap.bowl]
     ==
   ?-    -.old
-      %2
-    `this(state old)
-  ::
-      %1
-    ::  Upgrade: bind /oauth to stub OAuth flow endpoints.
-    ::
-    :_  this(state [%2 +.old])
-    :~  oauth-card  ==
-  ::
       %0
-    ::  Upgrade: bind both /.well-known and /oauth.
-    ::
     :_  this(state [%2 +.old])
     :~  well-known-card  oauth-card  ==
   ==
