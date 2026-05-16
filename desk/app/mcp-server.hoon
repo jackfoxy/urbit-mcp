@@ -260,28 +260,33 @@
         %'POST'
       =/  client-protocol-version=(unit @t)
         (get-header:http 'mcp-protocol-version' header-list.request.req)
-      ?:  ?|  ?=(~ client-protocol-version)
-              !=(u.client-protocol-version mcp-protocol-version)
-          ==
+      =/  bad-protocol-version=?
+        ?~  client-protocol-version
+          .n
+        !=(u.client-protocol-version mcp-protocol-version)
+      ?:  bad-protocol-version
         :_  this
-        %:  simple-response
+        %:  json-response
             eyre-id
             400
-            ~[['MCP-Protocol-Version' mcp-protocol-version]]
+            (pairs:enjs:format ~[['error' s+'Unsupported MCP-Protocol-Version']])
         ==
       =/  accept=(unit @t)
         (get-header:http 'accept' header-list.request.req)
       ?~  accept
         :_  this
-        %:  simple-response
+        %:  json-response
             eyre-id
             400
-            ~[['MCP-Protocol-Version' mcp-protocol-version]]
+            (pairs:enjs:format ~[['error' s+'Missing Accept header']])
         ==
-      ?.  ?&  ?=(^ (find "application/json" (trip u.accept)))
-              ?=(^ (find "text/event-stream" (trip u.accept)))
-          ==
-        [(simple-response eyre-id 406 ~[['MCP-Protocol-Version' mcp-protocol-version]]) this]
+      ?.  ?=(^ (find "application/json" (trip u.accept)))
+        :_  this
+        %:  json-response
+            eyre-id
+            406
+            (pairs:enjs:format ~[['error' s+'Accept must include application/json']])
+        ==
       =/  content-type=(unit @t)
         (get-header:http 'content-type' header-list.request.req)
       ?+  content-type
