@@ -1,6 +1,11 @@
 /-  mcp
 /+  dbug, verb, server, default-agent,
     jut=json-utils, ml=mcp
+::
+/$  tools-to-json      %mcp-tools      %json
+/$  prompts-to-json    %mcp-prompts    %json
+/$  resources-to-json  %mcp-resources  %json
+::
 |%
 ++  mcp-protocol-version  %'2025-11-25'
 ::
@@ -340,15 +345,15 @@
         ::
             [~ [%s %'tools/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-tools-to-json:ml ~(tap in tools)) id))
+          (send-event eyre-id (result:rpc:ml (tools-to-json ~(tap in tools)) id))
         ::
             [~ [%s %'resources/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-resources-to-json:ml ~(tap in resources)) id))
+          (send-event eyre-id (result:rpc:ml (resources-to-json ~(tap in resources)) id))
         ::
             [~ [%s %'prompts/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-prompts-to-json:ml ~(tap in prompts)) id))
+          (send-event eyre-id (result:rpc:ml (prompts-to-json ~(tap in prompts)) id))
         ::
             [~ [%s %'resources/read']]
           =/  uri=(unit @t)
