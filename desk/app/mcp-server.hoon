@@ -1,6 +1,11 @@
 /-  mcp
 /+  dbug, verb, server, default-agent,
     jut=json-utils, ml=mcp
+::
+/$  tools-to-json      %mcp-tools      %json
+/$  prompts-to-json    %mcp-prompts    %json
+/$  resources-to-json  %mcp-resources  %json
+::
 |%
 ++  mcp-protocol-version  %'2025-11-25'
 ::
@@ -340,15 +345,15 @@
         ::
             [~ [%s %'tools/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-tools-to-json:ml tools) id))
+          (send-event eyre-id (result:rpc:ml (tools-to-json ~(tap in tools)) id))
         ::
             [~ [%s %'resources/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-resources-to-json:ml resources) id))
+          (send-event eyre-id (result:rpc:ml (resources-to-json ~(tap in resources)) id))
         ::
             [~ [%s %'prompts/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (mcp-prompts-to-json:ml prompts) id))
+          (send-event eyre-id (result:rpc:ml (prompts-to-json ~(tap in prompts)) id))
         ::
             [~ [%s %'resources/read']]
           =/  uri=(unit @t)
@@ -604,20 +609,23 @@
   ^-  (unit (unit cage))
   ?+  pole  (on-peek:def `path`pole)
     ::
-    ::  .^(json %gx /=mcp-server=/tools/json)
+    ::  .^(json %gx /=mcp-server=/mcp/tools/json)
+    ::  .^((list tool:mcp) %gx /=mcp-server=/mcp/tools/noun)
     ::  read tool definitions
-    [%x %tools ~]
-      ``json+!>((mcp-tools-to-json:ml tools))
+      [%x %mcp %tools ~]
+    ``mcp-tools+!>(~(tap in tools))
     ::
-    ::  .^(json %gx /=mcp-server=/resources/json)
-    ::  read resource definitions
-    [%x %resources ~]
-      ``json+!>((mcp-resources-to-json:ml resources))
-    ::
-    ::  .^(json %gx /=mcp-server=/prompts/json)
+    ::  .^(json %gx /=mcp-server=/mcp/prompts/json)
+    ::  .^((list prompt:mcp) %gx /=mcp-server=/mcp/prompts/noun)
     ::  read prompt definitions
-    [%x %prompts ~]
-      ``json+!>((mcp-prompts-to-json:ml prompts))
+      [%x %mcp %prompts ~]
+    ``mcp-prompts+!>(~(tap in prompts))
+    ::
+    ::  .^(json %gx /=mcp-server=/mcp/resources/json)
+    ::  .^((list resource:mcp) %gx /=mcp-server=/mcp/resource/noun)
+    ::  read resource definitions
+      [%x %mcp %resources ~]
+    ``mcp-resources+!>(~(tap in resources))
   ==
 ++  on-arvo
   |=  [=(pole knot) =sign-arvo]

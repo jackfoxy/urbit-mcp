@@ -79,59 +79,6 @@
       ==
   ==
 ::
-++  mcp-tools-to-json
-  |=  tool-set=(set tool:mcp)
-  ^-  json
-  %-  pairs:enjs:format
-  :~  :-  'tools'
-      :-  %a
-      %+  turn
-        ~(tap in tool-set)
-      |=  =tool:mcp
-      ^-  json
-      =/  properties=(map @t json)
-        %-  ~(run by parameters.tool)
-        |=  =def:parameter:tool:mcp
-        %-  pairs:enjs:format
-        :~  ['type' s+(@t type.def)]
-            ['description' s+desc.def]
-        ==
-      ::  Convert required list to JSON array
-      =/  required-array=(list json)
-        (turn required.tool |=(f=@t s+f))
-      %-  pairs:enjs:format
-      :~  ['name' [%s name.tool]]
-          ['description' [%s desc.tool]]
-          :-  'inputSchema'
-          %-  pairs:enjs:format
-          :~  ['type' [%s 'object']]
-              ['properties' [%o properties]]
-              ['required' [%a required-array]]
-          ==
-      ==
-  ==
-::
-++  mcp-resources-to-json
-  |=  resource-set=(set resource:mcp)
-  ^-  json
-  %-  pairs:enjs:format
-  :~  :-  'resources'
-      :-  %a
-      %+  turn
-        ~(tap in resource-set)
-      |=  =resource:mcp
-      ^-  json
-      %-  pairs:enjs:format
-      %+  welp
-        :~  ['uri' s+uri.resource]
-            ['name' s+name.resource]
-            ['description' s+desc.resource]
-        ==
-      ?~  mime-type.resource  ~
-      :~  ['mimeType' s+u.mime-type.resource]
-      ==
-  ==
-::
 ++  prompt-messages-to-json
   |=  messages=(list message:prompt:mcp)
   ^-  json
@@ -148,50 +95,6 @@
           ?~  text.content.message
             ['text' s+'']
           ['text' s+u.text.content.message]
-      ==
-  ==
-::
-++  mcp-prompts-to-json
-  |=  prompt-set=(set prompt:mcp)
-  ^-  json
-  %-  pairs:enjs:format
-  :~  :-  'prompts'
-      :-  %a
-      %+  turn
-        ~(tap in prompt-set)
-      |=  =prompt:mcp
-      ^-  json
-      %-  pairs:enjs:format
-      :~  ['name' s+name.prompt]
-          ['title' s+title.prompt]
-          ['description' s+desc.prompt]
-          :-  'arguments'
-          :-  %a
-          %+  turn
-            arguments.prompt
-          |=  arg=argument:prompt:mcp
-          ^-  json
-          %-  pairs:enjs:format
-          :~  ['name' s+name.arg]
-              ['description' s+desc.arg]
-              ['required' b+required.arg]
-          ==
-          :-  'icons'
-          :-  %a
-          %+  turn
-            icons.prompt
-          |=  =icon:prompt:mcp
-          ^-  json
-          %-  pairs:enjs:format
-          :~  ['src' s+src.icon]
-              ['mimeType' s+mime-type.icon]
-              :-  'sizes'
-              :-  %a
-              %+  turn
-                sizes.icon
-              |=  size=@t
-              [%s size]
-          ==
       ==
   ==
 --
