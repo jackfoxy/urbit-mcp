@@ -32,6 +32,7 @@ git module base-dev:
     - pkg/base-dev/lib/strandio.hoon
     - pkg/base-dev/lib/test.hoon
     - pkg/base-dev/lib/verb.hoon
+    - pkg/base-dev/mar/txt.hoon
     - pkg/base-dev/mar/bill.hoon
     - pkg/base-dev/mar/kelvin.hoon
     - pkg/base-dev/mar/noun.hoon
