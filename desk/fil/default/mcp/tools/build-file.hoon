@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'build-file'
+:*  'urbit-mcp/build-file'
   '''
   Build a source file from a Clay desk and return success or failure.
   '''

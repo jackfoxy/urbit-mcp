@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'add-mcp-prompt'
+:*  'urbit-mcp/add-mcp-prompt'
     '''
     Add a new MCP Prompt to the %mcp-server agent state.
     '''

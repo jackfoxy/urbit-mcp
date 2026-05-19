@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'nuke-agent'
+:*  'urbit-mcp/nuke-agent'
     '''
     Permanently wipe the state of a Gall agent.
     You can also nuke an entire desk.

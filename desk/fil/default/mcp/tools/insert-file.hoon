@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'insert-file'
+:*  'urbit-mcp/insert-file'
     '''
     Insert a file into the Clay filesystem.
     Will fail if the target desk doesn't have the given mark in /desk/mar/...

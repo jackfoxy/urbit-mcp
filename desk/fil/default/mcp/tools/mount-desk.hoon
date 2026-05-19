@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'mount-desk'
+:*  'urbit-mcp/mount-desk'
     '''
     Mount a desk on this ship.
     '''

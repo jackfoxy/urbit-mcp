@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'list-files'
+:*  'urbit-mcp/list-files'
   '''
   List files in Clay under the given filepath.
   '''

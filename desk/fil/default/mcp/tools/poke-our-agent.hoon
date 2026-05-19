@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'poke-our-agent'
+:*  'urbit-mcp/poke-our-agent'
   '''
   Poke a Gall agent with data of a specified mark.
   '''

@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'install-mcp-feature'
+:*  'urbit-mcp/install-mcp-feature'
     '''
     Install a single MCP feature from a beam URI by
     building and adding it to the %mcp-server state.

@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'new-desk'
+:*  'urbit-mcp/new-desk'
     '''
     Create a new desk with some default provisions.
     '''

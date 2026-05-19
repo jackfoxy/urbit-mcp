@@ -2,7 +2,7 @@
 /+  io=strandio, libstrand=strand
 =,  strand-fail=strand-fail:libstrand
 ^-  tool:mcp
-:*  'scry-agent'
+:*  'urbit-mcp/scry-agent'
   '''
   Run a %gx scry (read) to retrieve data from a Gall agent.
   The endpoint must return JSON for this tool to work.

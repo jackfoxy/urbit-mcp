@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'revive-agent'
+:*  'urbit-mcp/revive-agent'
     '''
     Revive (re-initialize) a nuked Gall agent on this ship.
     You can also revive an entire desk.

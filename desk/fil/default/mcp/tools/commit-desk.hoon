@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'commit-desk'
+:*  'urbit-mcp/commit-desk'
     '''
     Commit code changes to a desk.
     '''
