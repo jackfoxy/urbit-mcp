@@ -17,7 +17,7 @@
 --
 ::
 ^-  tool:mcp
-:*  'urbit-mcp/get-file'
+:*  'urbit/mcp/get-file'
   '''
   Fetch a Clay file on the local ship
   '''

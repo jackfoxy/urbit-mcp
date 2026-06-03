@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'urbit-mcp/add-mcp-resource'
+:*  'urbit/mcp/add-mcp-resource'
     '''
     Add a new MCP Resource to the %mcp-server agent state.
     '''

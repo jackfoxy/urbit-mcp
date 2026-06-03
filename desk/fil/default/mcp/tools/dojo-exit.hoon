@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'dojo/exit'
+:*  'urbit/dojo/exit'
     '''
     Enter |exit in the Dojo, gracefully shutting down the ship.
     '''

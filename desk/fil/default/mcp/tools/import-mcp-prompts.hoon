@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit-mcp/import-mcp-prompts'
+:*  'urbit/mcp/import-mcp-prompts'
     'Import MCP Prompts from a desk.'
     %-  my
     :~  ['desk' [%string 'Desk to import MCP Prompts from.']]

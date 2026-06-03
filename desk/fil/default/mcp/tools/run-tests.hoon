@@ -2,7 +2,7 @@
 /+  io=strandio, libstrand=strand
 =,  strand-fail=strand-fail:libstrand
 ^-  tool:mcp
-:*  'urbit-mcp/run-tests'
+:*  'urbit/mcp/run-tests'
     '''
     Run unit tests and/or integration tests, given a desk and a path prefix.
     '''

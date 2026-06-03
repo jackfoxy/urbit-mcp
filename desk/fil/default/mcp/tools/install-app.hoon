@@ -2,7 +2,7 @@
 /+  io=strandio
 =,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
-:*  'urbit-mcp/install-app'
+:*  'urbit/mcp/install-app'
     '''
     Install a desk (local or remote).
     '''

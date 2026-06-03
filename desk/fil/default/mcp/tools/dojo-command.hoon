@@ -180,7 +180,7 @@
 --
 ::
 ^-  tool:mcp
-:*  'dojo/command'
+:*  'urbit/dojo/command'
   '''
   Run one string in Dojo through the %sole command-line protocol and return
   the text emitted before Dojo reports the next prompt.

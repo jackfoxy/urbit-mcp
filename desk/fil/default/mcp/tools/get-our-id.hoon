@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit-mcp/get-our-id'
+:*  'urbit/mcp/get-our-id'
   'Get the Urbit ID (@p) of this ship.'
   ~
   ~

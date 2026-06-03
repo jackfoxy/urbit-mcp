@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'dojo/mount-desk'
+:*  'urbit/dojo/mount-desk'
     '''
     Mount a desk on this ship.
     '''
@@ -34,7 +34,7 @@
       %+  murn  tools
       |=  =tool:mcp
       ^-  (unit tool:mcp)
-      ?.  =(name.tool 'dojo/command')
+      ?.  =(name.tool 'urbit/dojo/command')
         ~
       `tool
     ?~  dojo-tools

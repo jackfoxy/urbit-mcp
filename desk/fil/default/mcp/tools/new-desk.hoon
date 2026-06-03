@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'dojo/new-desk'
+:*  'urbit/dojo/new-desk'
     '''
     Create a new desk with some default provisions.
     Will return Dojo prompt >= if successful.
@@ -34,7 +34,7 @@
       %+  murn  tools
       |=  =tool:mcp
       ^-  (unit tool:mcp)
-      ?.  =(name.tool 'dojo/command')
+      ?.  =(name.tool 'urbit/dojo/command')
         ~
       `tool
     ?~  dojo-tools

@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit-mcp/toggle-permissions'
+:*  'urbit/mcp/toggle-permissions'
     '''
     Make a node in the Clay filesystem public or private.
     Publish a desk as an app by making the whole desk public.
