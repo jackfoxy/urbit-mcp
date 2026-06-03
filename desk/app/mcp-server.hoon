@@ -172,11 +172,44 @@
         :-  ~
         ?-  mark
           %add-tool
-            this(tools (~(put in tools) !<(tool:mcp vase)))
+            =/  new=tool:mcp  !<(tool:mcp vase)
+            %=  this
+              tools   %-  silt
+                      :-  new
+                      %+  murn
+                        ~(tap in tools)
+                      |=  old=tool:mcp
+                      ^-  (unit tool:mcp)
+                      ?:  =(name.new name.old)
+                        ~
+                      `old
+            ==
           %add-prompt
-            this(prompts (~(put in prompts) !<(prompt:mcp vase)))
+            =/  new=prompt:mcp  !<(prompt:mcp vase)
+            %=  this
+              prompts  %-  silt
+                       :-  new
+                       %+  murn
+                         ~(tap in prompts)
+                       |=  old=prompt:mcp
+                       ^-  (unit prompt:mcp)
+                       ?:  =(title.new title.old)
+                         ~
+                       `old
+            ==
           %add-resource
-            this(resources (~(put in resources) !<(resource:mcp vase)))
+            =/  new=resource:mcp  !<(resource:mcp vase)
+            %=  this
+              resources  %-  silt
+                         :-  new
+                         %+  murn
+                           ~(tap in resources)
+                         |=  old=resource:mcp
+                         ^-  (unit resource:mcp)
+                         ?:  =(uri.new uri.old)
+                           ~
+                         `old
+            ==
         ==
       ==
   ++  handle-req
