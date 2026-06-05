@@ -44,6 +44,64 @@
     %-  as-octt:mimes:html
     (trip (en:json:html json))
 ::
+++  sse-data
+  |=  =json
+  ^-  octs
+  %-  as-octt:mimes:html
+  (trip (cat 3 'data: ' (cat 3 (en:json:html json) '\0a\0a')))
+::
+++  send-sse-start
+  |=  eyre-id=@ta
+  ^-  (list card)
+  =/  response-header=response-header:http
+    :-  200
+    :~  ['content-type' 'text/event-stream']
+        ['cache-control' 'no-cache']
+        ['connection' 'keep-alive']
+        ['MCP-Protocol-Version' mcp-protocol-version]
+    ==
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-header !>(response-header)]
+      ==
+      :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(as-octt:mimes:html ":\0a\0a"))]
+      ==
+  ==
+::
+++  send-sse-json
+  |=  [eyre-id=@ta =json]
+  ^-  (list card)
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(sse-data json))]
+      ==
+  ==
+::
+++  list-changed-notification
+  |=  method=@t
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['jsonrpc' s+'2.0']
+      ['method' s+method]
+  ==
+::
+++  broadcast-list-changed
+  |=  [=bowl:gall sse-sessions=(map @ta session:mcp) method=@t]
+  ^-  (list card:agent:gall)
+  =/  notification=json  (list-changed-notification method)
+  %-  zing
+  %+  murn
+    ~(tap by sse-sessions)
+  |=  [eyre-id=@ta session:mcp]
+  ^-  (unit (list card:agent:gall))
+  =/  live=?
+    %+  lien
+      ~(tap by sup.bowl)
+    |=  [=duct =ship pat=path]
+    =(pat /http-response/[eyre-id])
+  ?.  live
+    ~
+  `(send-sse-json eyre-id notification)
+::
 ::  +json-response: respond with status code and JSON body
 ::    Used for endpoints that must return JSON (e.g. OAuth discovery
 ::    stubs at /.well-known/*) so MCP clients that probe per spec do
@@ -73,6 +131,8 @@
       tools=(set tool:mcp)
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
+      ::  map eyre-id to session:mcp
+      sse-sessions=(map @ta session:mcp)
   ==
 --
 %-  agent:dbug
@@ -168,8 +228,13 @@
       ::
           ?(%add-tool %add-prompt %add-resource)
         ?>  =(src our):bowl
-        ::  XX send listChanged notification
-        :-  ~
+        =/  notif=@t
+          ?-  mark
+            %add-tool      'notifications/tools/list_changed'
+            %add-prompt    'notifications/prompts/list_changed'
+            %add-resource  'notifications/resources/list_changed'
+          ==
+        :-  (broadcast-list-changed bowl sse-sessions notif)
         ?-  mark
           %add-tool
             =/  new=tool:mcp  !<(tool:mcp vase)
@@ -287,13 +352,24 @@
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
     ?+  method.request.req
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      [(simple-response eyre-id 405 ~[['allow' 'GET, POST']]) this]
     ::
         %'GET'
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      =/  accept=(unit @t)
+        (get-header:http 'accept' header-list.request.req)
+      ?~  accept
+        [(simple-response eyre-id 406 ~) this]
+      ?.  ?=(^ (find "text/event-stream" (trip u.accept)))
+        [(simple-response eyre-id 406 ~) this]
+      =/  session-id=@t
+        ?~  get-session=(get-header:http 'mcp-session-id' header-list.request.req)
+          eyre-id
+        u.get-session
+      :_  this(sse-sessions (~(put by sse-sessions) eyre-id session-id))
+      (send-sse-start eyre-id)
     ::
         %'DELETE'
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      [(simple-response eyre-id 405 ~[['allow' 'GET, POST']]) this]
     ::
         %'POST'
       =/  client-protocol-version=(unit @t)
@@ -362,12 +438,14 @@
                       :-  'capabilities'
                       %-  pairs:enjs:format
                       :~  :-  'tools'
-                          ::  XX change to %.y once we support listChanged notifs
-                          (pairs:enjs:format ~[['listChanged' b+%.n]])
-                          :-  'resources'
-                          (pairs:enjs:format ~[['subscribe' b+%.n] ['listChanged' b+%.n]])
+                          (pairs:enjs:format ~[['listChanged' b+%.y]])
                           :-  'prompts'
-                          (pairs:enjs:format ~[['listChanged' b+%.n]])
+                          (pairs:enjs:format ~[['listChanged' b+%.y]])
+                          :-  'resources'
+                          %-  pairs:enjs:format
+                          :~  ['subscribe' b+%.n]
+                              ['listChanged' b+%.y]
+                          ==
                       ==
                       :-  'serverInfo'
                       %-  pairs:enjs:format
