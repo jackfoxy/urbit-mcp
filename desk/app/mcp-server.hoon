@@ -757,6 +757,23 @@
     ::  read resource definitions
       [%x %mcp %resources ~]
     ``mcp-resources+!>(~(tap in resources))
+    ::
+    ::  search for tools under a path (e.g. /urbit, /urbit/mcp)
+    ::  .^(json %gx /=mcp-server=/mcp/tools/urbit/mcp/json)
+    ::  .^((list tool:mcp) %gx /=mcp-server=/mcp/tools/urbit/mcp/noun)
+      [%x %mcp %tools pax=*]
+    =/  =path  pax.pole
+    %-  some
+    %-  some
+    :-  %mcp-tools
+    !>  ^-  (list tool:mcp)
+    %+  murn
+      ~(tap in tools)
+    |=  =tool:mcp
+    ^-  (unit tool:mcp)
+    ?.  =(path (scag (lent path) (stab (rap 3 '/' name.tool ~))))
+      ~
+    `tool
   ==
 ++  on-arvo
   |=  [=(pole knot) =sign-arvo]
