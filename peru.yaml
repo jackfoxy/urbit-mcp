@@ -35,6 +35,7 @@ git module base-dev:
     - pkg/base-dev/mar/kelvin.hoon
     - pkg/base-dev/mar/noun.hoon
     - pkg/base-dev/mar/mime.hoon
+    - pkg/base-dev/sur/sole.hoon
     - pkg/base-dev/mar/hoon.hoon
     - pkg/base-dev/mar/json.hoon
     - pkg/base-dev/sur/verb.hoon
