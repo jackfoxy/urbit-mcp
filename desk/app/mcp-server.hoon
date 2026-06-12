@@ -225,6 +225,31 @@
           %handle-http-request
         (handle-req !<([@ta inbound-request:eyre] vase))
       ::
+          %import-tools
+        ?>  =(src our):bowl
+        =/  desk=@t  !<(@t vase)
+        =/  imported=(list tool:mcp)
+          .^  (list tool:mcp)
+              %gx
+              /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/tools/noun
+          ==
+        :-  (broadcast-list-changed bowl sse-sessions 'notifications/tools/list_changed')
+        %=  this
+          tools   %-  silt
+                  %+  weld
+                    imported
+                  %+  murn
+                    ~(tap in tools)
+                  |=  old=tool:mcp
+                  ^-  (unit tool:mcp)
+                  ?:  %+  lien
+                        imported
+                      |=  new=tool:mcp
+                      =(name.new name.old)
+                    ~
+                  `old
+        ==
+      ::
           ?(%add-tool %add-prompt %add-resource)
         ?>  =(src our):bowl
         =/  notif=@t
@@ -272,7 +297,7 @@
                          ^-  (unit resource:mcp)
                          ?:  =(uri.new uri.old)
                            ~
-                         `old
+                           `old
             ==
         ==
       ==
