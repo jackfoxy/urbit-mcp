@@ -2,20 +2,20 @@ const std = @import("std");
 
 const dependency_cache_dir = ".zig-cache/desk-deps";
 
-const Dependency = struct {
+const RepoImport = struct {
     name: []const u8,
     url: []const u8,
     commit: []const u8,
-    strip_prefix: []const u8,
+    path_prefix: []const u8,
     picks: []const []const u8,
 };
 
-const dependencies = [3]Dependency{
+const dependencies = [3]RepoImport{
     .{
         .name = "pretty-file",
         .url = "https://github.com/urbit/urbit",
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
-        .strip_prefix = "pkg/arvo",
+        .path_prefix = "pkg/arvo",
         .picks = &.{
             "pkg/arvo/lib/pretty-file.hoon",
         },
@@ -24,7 +24,7 @@ const dependencies = [3]Dependency{
         .name = "test-agent",
         .url = "https://github.com/tloncorp/tlon-apps",
         .commit = "9f0c94771e4773567a2f55a727ffa31b0f6e8e9f",
-        .strip_prefix = "desk",
+        .path_prefix = "desk",
         .picks = &.{
             "desk/lib/test-agent.hoon",
         },
@@ -33,7 +33,7 @@ const dependencies = [3]Dependency{
         .name = "base-dev",
         .url = "https://github.com/urbit/urbit",
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
-        .strip_prefix = "pkg/base-dev",
+        .path_prefix = "pkg/base-dev",
         .picks = &.{
             "pkg/base-dev/lib/dbug.hoon",
             "pkg/base-dev/lib/default-agent.hoon",
@@ -152,22 +152,22 @@ fn clear() !void {
 fn importDependency(
     step: *std.Build.Step,
     allocator: std.mem.Allocator,
-    dep: Dependency,
+    dep: RepoImport,
     dist_path: []const u8,
 ) !void {
     const repo_path = try std.fs.path.join(allocator, &.{ dependency_cache_dir, dep.name });
 
-    try ensureRepo(step, repo_path, dep);
+    try ensureRepoImport(step, repo_path, dep);
 
     for (dep.picks) |pick| {
-        const rel = try strippedPath(step, dep.strip_prefix, pick);
+        const rel = try strippedPath(step, dep.path_prefix, pick);
         const source_path = try std.fs.path.join(allocator, &.{ repo_path, pick });
         const dest_path = try std.fs.path.join(allocator, &.{ dist_path, rel });
         try copyFilePath(source_path, dest_path);
     }
 }
 
-fn ensureRepo(step: *std.Build.Step, repo_path: []const u8, dep: Dependency) !void {
+fn ensureRepoImport(step: *std.Build.Step, repo_path: []const u8, dep: RepoImport) !void {
     const git_dir = try std.fs.path.join(step.owner.allocator, &.{ repo_path, ".git" });
     if (!pathExists(git_dir)) {
         if (std.fs.path.dirname(repo_path)) |parent| {
@@ -189,7 +189,7 @@ fn ensureRepo(step: *std.Build.Step, repo_path: []const u8, dep: Dependency) !vo
     try run(step, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", dep.commit });
 }
 
-fn setSparseCheckout(step: *std.Build.Step, dep: Dependency, repo_path: []const u8) !void {
+fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const u8) !void {
     var argv = std.ArrayList([]const u8){};
     try argv.append(step.owner.allocator, "git");
     try argv.append(step.owner.allocator, "-C");
@@ -247,12 +247,12 @@ fn runAllowFail(step: *std.Build.Step, argv: []const []const u8) bool {
     };
 }
 
-fn strippedPath(step: *std.Build.Step, strip_prefix: []const u8, pick: []const u8) ![]const u8 {
-    if (!std.mem.startsWith(u8, pick, strip_prefix)) {
-        return step.fail("pick '{s}' is not under strip_prefix '{s}'", .{ pick, strip_prefix });
+fn strippedPath(step: *std.Build.Step, path_prefix: []const u8, pick: []const u8) ![]const u8 {
+    if (!std.mem.startsWith(u8, pick, path_prefix)) {
+        return step.fail("pick '{s}' is not under path_prefix '{s}'", .{ pick, path_prefix });
     }
 
-    var rel = pick[strip_prefix.len..];
+    var rel = pick[path_prefix.len..];
     if (rel.len > 0 and rel[0] == '/') {
         rel = rel[1..];
     }
