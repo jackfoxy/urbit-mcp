@@ -1,22 +1,20 @@
 const std = @import("std");
 
-const dependency_cache_dir = ".zig-cache/desk-deps";
-
 const RepoImport = struct {
-    name: []const u8,
-    url: []const u8,
-    commit: []const u8,
-    path_prefix: []const u8,
-    picks: []const []const u8,
+    name: []const u8,          // any name
+    url: []const u8,           // git repo url
+    commit: []const u8,        // commit hash
+    prefix: []const u8,        // path prefix to remove
+    paths: []const []const u8, // filepaths to import
 };
 
-const dependencies = [3]RepoImport{
+const dependencies = [_]RepoImport{
     .{
         .name = "pretty-file",
         .url = "https://github.com/urbit/urbit",
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
-        .path_prefix = "pkg/arvo",
-        .picks = &.{
+        .prefix = "pkg/arvo",
+        .paths = &.{
             "pkg/arvo/lib/pretty-file.hoon",
         },
     },
@@ -24,8 +22,8 @@ const dependencies = [3]RepoImport{
         .name = "test-agent",
         .url = "https://github.com/tloncorp/tlon-apps",
         .commit = "9f0c94771e4773567a2f55a727ffa31b0f6e8e9f",
-        .path_prefix = "desk",
-        .picks = &.{
+        .prefix = "desk",
+        .paths = &.{
             "desk/lib/test-agent.hoon",
         },
     },
@@ -33,8 +31,8 @@ const dependencies = [3]RepoImport{
         .name = "base-dev",
         .url = "https://github.com/urbit/urbit",
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
-        .path_prefix = "pkg/base-dev",
-        .picks = &.{
+        .prefix = "pkg/base-dev",
+        .paths = &.{
             "pkg/base-dev/lib/dbug.hoon",
             "pkg/base-dev/lib/default-agent.hoon",
             "pkg/base-dev/lib/server.hoon",
@@ -58,10 +56,12 @@ const dependencies = [3]RepoImport{
     },
 };
 
+const dependency_cache_dir = ".zig-cache/desk-deps";
+
 const Action = enum {
-    build,
-    clean,
-    clear,
+    build, // build /dist
+    clean, // remove /dist
+    clear, // remove /dist and .zig-cache/desk-deps
 };
 
 const DeskStep = struct {
@@ -98,20 +98,20 @@ const DeskStep = struct {
 };
 
 pub fn build(b: *std.Build) void {
-    const desk = b.option([]const u8, "desk", "After building, replace the desk at this path with dist contents");
+    const desk = b.option([]const u8, "desk", "After building, replace the desk at this path with /dist contents");
 
     const build_step = DeskStep.create(b, "build desk", .build, desk);
     b.default_step.dependOn(&build_step.step);
 
-    const named_build = b.step("build", "Build full desk from desk and pinned Git dependencies");
+    const named_build = b.step("build", "Build /dist from /desk and dependencies");
     named_build.dependOn(&build_step.step);
 
     const clean_step = DeskStep.create(b, "clean", .clean, null);
-    const named_clean = b.step("clean", "Remove dist");
+    const named_clean = b.step("clean", "Remove /dist");
     named_clean.dependOn(&clean_step.step);
 
     const clear_step = DeskStep.create(b, "clear", .clear, null);
-    const named_clear = b.step("clear", "Remove dist and cached dependencies");
+    const named_clear = b.step("clear", "Remove /dist and cached dependencies");
     named_clear.dependOn(&clear_step.step);
 }
 
@@ -159,9 +159,9 @@ fn importDependency(
 
     try ensureRepoImport(step, repo_path, dep);
 
-    for (dep.picks) |pick| {
-        const rel = try strippedPath(step, dep.path_prefix, pick);
-        const source_path = try std.fs.path.join(allocator, &.{ repo_path, pick });
+    for (dep.paths) |path| {
+        const rel = try strippedPath(step, dep.prefix, path);
+        const source_path = try std.fs.path.join(allocator, &.{ repo_path, path });
         const dest_path = try std.fs.path.join(allocator, &.{ dist_path, rel });
         try copyFilePath(source_path, dest_path);
     }
@@ -174,7 +174,7 @@ fn ensureRepoImport(step: *std.Build.Step, repo_path: []const u8, dep: RepoImpor
             try std.fs.cwd().makePath(parent);
         }
         try std.fs.cwd().makePath(repo_path);
-        std.debug.print("Checking out {s}...\n", .{dep.name});
+        std.debug.print("Importing {s}...\n", .{dep.name});
         try run(step, &.{ "git", "-C", repo_path, "init" });
         try run(step, &.{ "git", "-C", repo_path, "remote", "add", "origin", dep.url });
         try run(step, &.{ "git", "-C", repo_path, "sparse-checkout", "init", "--no-cone" });
@@ -197,8 +197,8 @@ fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const 
     try argv.append(step.owner.allocator, "sparse-checkout");
     try argv.append(step.owner.allocator, "set");
     try argv.append(step.owner.allocator, "--no-cone");
-    for (dep.picks) |pick| {
-        try argv.append(step.owner.allocator, pick);
+    for (dep.paths) |path| {
+        try argv.append(step.owner.allocator, path);
     }
     try run(step, argv.items);
 }
@@ -247,12 +247,12 @@ fn runAllowFail(step: *std.Build.Step, argv: []const []const u8) bool {
     };
 }
 
-fn strippedPath(step: *std.Build.Step, path_prefix: []const u8, pick: []const u8) ![]const u8 {
-    if (!std.mem.startsWith(u8, pick, path_prefix)) {
-        return step.fail("pick '{s}' is not under path_prefix '{s}'", .{ pick, path_prefix });
+fn strippedPath(step: *std.Build.Step, prefix: []const u8, pick: []const u8) ![]const u8 {
+    if (!std.mem.startsWith(u8, pick, prefix)) {
+        return step.fail("pick '{s}' is not under prefix '{s}'", .{ pick, prefix });
     }
 
-    var rel = pick[path_prefix.len..];
+    var rel = pick[prefix.len..];
     if (rel.len > 0 and rel[0] == '/') {
         rel = rel[1..];
     }
