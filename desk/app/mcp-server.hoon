@@ -891,8 +891,28 @@
           eyre-id.pole
         ?-    -.response
             %error
-          ::  XX https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling
-          (internal:error:rpc rpc-id.pole message.response data.response)
+          %-  pairs:enjs:format
+          :~  ['id' n+rpc-id.pole]
+              ['jsonrpc' s+'2.0']
+              :-  'result'
+              %-  pairs:enjs:format
+              %-  zing
+              :~  :~  :-  'content'
+                      :-  %a
+                      :~  %-  pairs:enjs:format
+                          :~  ['type' s+'text']
+                              ['text' s+message.response]
+                          ==
+                      ==
+                  ==
+                  ?~  data.response
+                    ~
+                  :~  ['structuredContent' u.data.response]
+                  ==
+                  :~  ['isError' b+.y]
+                  ==
+              ==
+          ==
         ::
             %result
           %-  pairs:enjs:format
