@@ -89,8 +89,21 @@
     $+  mcp-resource
     $:  uri=@t
         name=@t
-        desc=@t
+        title=(unit @t)
+        desc=(unit @t)
         mime-type=(unit @t)
+        size=(unit @ud)
+        annotations=(unit annotations)
+    ==
+  ::
+  +$  template
+    $+  mcp-resource-template
+    $:  uri-template=@t
+        name=@t
+        title=(unit @t)
+        desc=(unit @t)
+        mime-type=(unit @t)
+        size=(unit @ud)
         annotations=(unit annotations)
     ==
   ::

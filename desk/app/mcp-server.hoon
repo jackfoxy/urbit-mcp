@@ -1,10 +1,11 @@
 /-  mcp
 /+  dbug, verb, server, default-agent, pf=pretty-file,
-    jut=json-utils, *rpc, beam-uri=uri-beam
+    jut=json-utils, *rpc, beam-uri=uri-beam, scry-uri=uri-scry
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
 /$  resources-to-json  %mcp-resources  %json
+/$  templates-to-json  %mcp-templates  %json
 ::
 |%
 ++  mcp-protocol-version  %'2025-11-25'
@@ -145,6 +146,7 @@
       tools=(set tool:mcp)
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
+      templates=(set template:resource:mcp)
       ::  map eyre-id to session:mcp
       sse-sessions=(map @ta session:mcp)
   ==
@@ -240,7 +242,7 @@
           %handle-http-request
         (handle-req !<([@ta inbound-request:eyre] vase))
       ::
-          ?(%import-tools %import-prompts %import-resources)
+          ?(%import-tools %import-prompts %import-resources %import-templates)
         ?>  =(src our):bowl
         =/  desk=@t  !<(@t vase)
         =/  notif=@t
@@ -248,6 +250,7 @@
             %import-tools      'notifications/tools/list_changed'
             %import-prompts    'notifications/prompts/list_changed'
             %import-resources  'notifications/resources/list_changed'
+            %import-templates  'notifications/resources/list_changed'
           ==
         :-  (broadcast-list-changed bowl sse-sessions notif)
         ?-    mark
@@ -291,8 +294,30 @@
                            imported
                          |=  new=prompt:mcp
                          =(title.new title.old)
-                       ~
-                     `old
+                         ~
+                       `old
+          ==
+        ::
+            %import-templates
+          =/  imported=(list template:resource:mcp)
+            .^  (list template:resource:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/templates/noun
+            ==
+          %=  this
+            templates  %-  silt
+                       %+  weld
+                         imported
+                       %+  murn
+                         ~(tap in templates)
+                       |=  old=template:resource:mcp
+                       ^-  (unit template:resource:mcp)
+                       ?:  %+  lien
+                             imported
+                           |=  new=template:resource:mcp
+                           =(name.new name.old)
+                         ~
+                       `old
           ==
         ::
             %import-resources
@@ -318,13 +343,14 @@
           ==
         ==
       ::
-          ?(%add-tool %add-prompt %add-resource)
+          ?(%add-tool %add-prompt %add-resource %add-template)
         ?>  =(src our):bowl
         =/  notif=@t
           ?-  mark
             %add-tool      'notifications/tools/list_changed'
             %add-prompt    'notifications/prompts/list_changed'
             %add-resource  'notifications/resources/list_changed'
+            %add-template  'notifications/resources/list_changed'
           ==
         :-  (broadcast-list-changed bowl sse-sessions notif)
         ?-  mark
@@ -364,6 +390,19 @@
                          |=  old=resource:mcp
                          ^-  (unit resource:mcp)
                          ?:  =(uri.new uri.old)
+                           ~
+                           `old
+            ==
+          %add-template
+            =/  new=template:resource:mcp  !<(template:resource:mcp vase)
+            %=  this
+              templates  %-  silt
+                         :-  new
+                         %+  murn
+                           ~(tap in templates)
+                         |=  old=template:resource:mcp
+                         ^-  (unit template:resource:mcp)
+                         ?:  =(name.new name.old)
                            ~
                            `old
             ==
@@ -557,6 +596,10 @@
           :_  this
           (send-event eyre-id (result:rpc p.u.id (resources-to-json ~(tap in resources))))
         ::
+            [~ [%s %'resources/templates/list']]
+          :_  this
+          (send-event eyre-id (result:rpc p.u.id (templates-to-json ~(tap in templates))))
+        ::
             [~ [%s %'prompts/list']]
           :_  this
           (send-event eyre-id (result:rpc p.u.id (prompts-to-json ~(tap in prompts))))
@@ -639,6 +682,81 @@
                     %i
                     [%request [%'GET' u.uri ~ ~] *outbound-config:iris]
             ==  ==
+          ::
+              %'scry'
+            =/  parsed-scry-uri=(unit path)
+              (parse:scry-uri u.uri)
+            ?~  parsed-scry-uri
+              :_  this
+              (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid scry URI {<u.uri>}") ~))
+            =/  care=@t  (head u.parsed-scry-uri)
+            =/  scry-path=path  (slag 1 u.parsed-scry-uri)
+            ?+  care
+              :_  this
+              (send-event eyre-id (params:error:rpc p.u.id 'Unsupported scry care' ~))
+            ::
+                %'gx'
+              ?.  =(%json (rear scry-path))
+                :_  this
+                (send-event eyre-id (params:error:rpc p.u.id 'Gall %x scry resource path must end in /json' ~))
+              =/  scry-result
+                %-  mule
+                |.
+                  .^  *
+                      %gx
+                      %+  welp
+                        /(scot %p our.bowl)/[(head scry-path)]/(scot %da now.bowl)
+                      (slag 1 scry-path)
+                  ==
+              ?>  ?=([? p=*] scry-result)
+              ?.  -.scry-result
+                :_  this
+                (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+              =/  scry-json=json  (json p.scry-result)
+              :_  this
+              %:  send-event
+                  eyre-id
+                  %-  result:rpc
+                  :-  p.u.id
+                  %-  pairs:enjs:format
+                  :~  :-  'contents'
+                      :-  %a
+                      :~  %-  pairs:enjs:format
+                          :~  ['uri' s+u.uri]
+                              ['mimeType' s+'application/json']
+                              ['text' s+(en:json:html scry-json)]
+                          ==
+                      ==
+              ==  ==
+            ::
+                %'cx'
+              =/  scry-result
+                %-  mule
+                |.
+                  .^  *
+                      %cx
+                      (welp /(scot %p our.bowl) scry-path)
+                  ==
+              ?>  ?=([? p=*] scry-result)
+              ?.  -.scry-result
+                :_  this
+                (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+              :_  this
+              %:  send-event
+                  eyre-id
+                  %-  result:rpc
+                  :-  p.u.id
+                  %-  pairs:enjs:format
+                  :~  :-  'contents'
+                      :-  %a
+                      :~  %-  pairs:enjs:format
+                          :~  ['uri' s+u.uri]
+                              ['mimeType' s+'text/plain']
+                              ['text' s+(crip "{<p.scry-result>}")]
+                          ==
+                      ==
+              ==  ==
+            ==
           ==
         ::
             [~ [%s %'prompts/get']]
@@ -783,6 +901,12 @@
     ::  read resource definitions
       [%x %mcp %resources ~]
     ``mcp-resources+!>(~(tap in resources))
+    ::
+    ::  .^(json %gx /=mcp-server=/mcp/templates/json)
+    ::  .^((list template:resource:mcp) %gx /=mcp-server=/mcp/templates/noun)
+    ::  read resource template definitions
+      [%x %mcp %templates ~]
+    ``mcp-templates+!>(~(tap in templates))
     ::
     ::  search for tools under a path (e.g. /urbit, /urbit/mcp)
     ::  .^(json %gx /=mcp-server=/mcp/tools/urbit/mcp/json)

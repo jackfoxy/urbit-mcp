@@ -1,35 +1,35 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/add-mcp-resource'
+:*  'urbit/mcp/add-mcp-template'
     '''
-    Add a new MCP Resource to the %mcp-server agent state.
+    Add a new MCP Resource Template to the %mcp-server agent state.
     '''
     %-  my
-    :~  ['uri' [%string 'The URI of your MCP resource.']]
-        ['name' [%string 'The name of your MCP resource.']]
-        ['title' [%string 'The display title of your MCP resource (optional).']]
-        ['desc' [%string 'The description of your MCP resource (optional).']]
-        ['mime-type' [%string 'The MIME type of your MCP resource (optional).']]
-        ['size' [%number 'The size of your MCP resource in bytes (optional).']]
-        ['audience' [%array 'The audience list for your MCP resource (optional).']]
+    :~  ['uri-template' [%string 'The URI template of your MCP resource template.']]
+        ['name' [%string 'The name of your MCP resource template.']]
+        ['title' [%string 'The display title of your MCP resource template (optional).']]
+        ['desc' [%string 'The description of your MCP resource template (optional).']]
+        ['mime-type' [%string 'The MIME type of your MCP resource template (optional).']]
+        ['size' [%number 'The size of your MCP resource template in bytes (optional).']]
+        ['audience' [%array 'The audience list for your MCP resource template (optional).']]
     ==
-    ~['uri' 'name']
+    ~['uri-template' 'name']
     ^-  thread-builder:tool:mcp
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
-    =/  uri=(unit argument:tool:mcp)   (~(get by args) 'uri')
+    =/  uri=(unit argument:tool:mcp)   (~(get by args) 'uri-template')
     =/  nam=(unit argument:tool:mcp)   (~(get by args) 'name')
     =/  tit=(unit argument:tool:mcp)   (~(get by args) 'title')
     =/  des=(unit argument:tool:mcp)   (~(get by args) 'desc')
     =/  mime=(unit argument:tool:mcp)  (~(get by args) 'mime-type')
     =/  siz=(unit argument:tool:mcp)   (~(get by args) 'size')
     =/  aud=(unit argument:tool:mcp)   (~(get by args) 'audience')
-    ?~  uri  (pure:m !>([%error %missing-resource-uri ~]))
+    ?~  uri  (pure:m !>([%error %missing-resource-template-uri ~]))
     ?>  ?=([%string @t] u.uri)
-    ?~  nam  (pure:m !>([%error %missing-resource-name ~]))
+    ?~  nam  (pure:m !>([%error %missing-resource-template-name ~]))
     ?>  ?=([%string @t] u.nam)
     =/  title=(unit @t)
       ?~  tit
@@ -67,16 +67,16 @@
     ;<  our=ship  bind:m  get-our:io
     ;<  ~  bind:m
       %-  send-raw-card:io
-      :*  %pass   /add-resource
+      :*  %pass   /add-template
           %agent  [our %mcp-server]
-          %poke   %add-resource
+          %poke   %add-template
           !>([p.u.uri p.u.nam title desc mime-type size annotations])
       ==
-    ;<  ~  bind:m  (take-poke-ack:io /add-resource)
+    ;<  ~  bind:m  (take-poke-ack:io /add-template)
     %-  pure:m
     !>  ^-  response:tool:mcp
     :-  %result
     :-  %unstructured
-    :~  [%text 'Resource added!']
+    :~  [%text 'Resource template added!']
     ==
 ==

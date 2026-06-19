@@ -15,11 +15,25 @@
       %+  welp
         :~  ['uri' s+uri.resource]
             ['name' s+name.resource]
-            ['description' s+desc.resource]
         ==
-      ?~  mime-type.resource
+      %+  welp
+        ?~  title.resource
+          ~
+        :~  ['title' s+u.title.resource]
+        ==
+      %+  welp
+        ?~  desc.resource
+          ~
+        :~  ['description' s+u.desc.resource]
+        ==
+      %+  welp
+        ?~  mime-type.resource
+          ~
+        :~  ['mimeType' s+u.mime-type.resource]
+        ==
+      ?~  size.resource
         ~
-      :~  ['mimeType' s+u.mime-type.resource]
+      :~  ['size' n+(scot %ud u.size.resource)]
       ==
   ==
   --
