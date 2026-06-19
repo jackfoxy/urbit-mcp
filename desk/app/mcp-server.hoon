@@ -605,6 +605,11 @@
           (send-event eyre-id (result:rpc p.u.id (prompts-to-json ~(tap in prompts))))
         ::
             [~ [%s %'resources/read']]
+         =/  request-id=(unit @ud)
+           (bind id ni:dejs:format)
+         ?~  request-id
+           :_  this
+           (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
           =/  uri=(unit @t)
             (~(deg jo:jut jon) /params/uri so:dejs:format)
           ?~  uri
@@ -649,11 +654,6 @@
                       (crip "Invalid beam {<u.uri>}")
                       ~
               ==  ==
-            =/  request-id=(unit @ud)
-              (bind id ni:dejs:format)
-            ?~  request-id
-              :_  this
-              (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
             :_  this
             :~  :*  %pass
                     /response/resource/beam/[eyre-id]/(scot %ud u.request-id)/[u.uri]
@@ -689,73 +689,81 @@
             ?~  parsed-scry-uri
               :_  this
               (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid scry URI {<u.uri>}") ~))
-            =/  care=@t  (head u.parsed-scry-uri)
+            =/  care-segment=@t  (head u.parsed-scry-uri)
             =/  scry-path=path  (slag 1 u.parsed-scry-uri)
-            ?+  care
-              :_  this
-              (send-event eyre-id (params:error:rpc p.u.id 'Unsupported scry care' ~))
+            =/  vane=@t  (cut 3 [0 1] care-segment)
+            =/  care=@t  (cut 3 [1 1] care-segment)
+            ?+    vane
+                :_  this
+                (send-event eyre-id (params:error:rpc p.u.id 'Unsupported vane' ~))
             ::
-                %'gx'
-              ?.  =(%json (rear scry-path))
+                %g
+              ?+    care
+                  :_  this
+                  (send-event eyre-id (params:error:rpc p.u.id 'Unsupported Gall scry care' ~))
+              ::
+                  %x
+                ?.  =(%json (rear scry-path))
+                  :_  this
+                  (send-event eyre-id (params:error:rpc p.u.id 'Gall %x scry resource path must end in /json' ~))
+                =/  scry-result
+                  %-  mule
+                  |.
+                    .^  *
+                        %gx
+                        %+  welp
+                          /(scot %p our.bowl)/[(head scry-path)]/(scot %da now.bowl)
+                        (slag 1 scry-path)
+                    ==
+                ?>  ?=([? p=*] scry-result)
+                ?.  -.scry-result
+                  :_  this
+                  (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+                =/  scry-json=json  (json p.scry-result)
                 :_  this
-                (send-event eyre-id (params:error:rpc p.u.id 'Gall %x scry resource path must end in /json' ~))
-              =/  scry-result
-                %-  mule
-                |.
-                  .^  *
-                      %gx
-                      %+  welp
-                        /(scot %p our.bowl)/[(head scry-path)]/(scot %da now.bowl)
-                      (slag 1 scry-path)
-                  ==
-              ?>  ?=([? p=*] scry-result)
-              ?.  -.scry-result
-                :_  this
-                (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
-              =/  scry-json=json  (json p.scry-result)
-              :_  this
-              %:  send-event
-                  eyre-id
-                  %-  result:rpc
-                  :-  p.u.id
-                  %-  pairs:enjs:format
-                  :~  :-  'contents'
-                      :-  %a
-                      :~  %-  pairs:enjs:format
-                          :~  ['uri' s+u.uri]
-                              ['mimeType' s+'application/json']
-                              ['text' s+(en:json:html scry-json)]
-                          ==
-                      ==
-              ==  ==
+                %:  send-event
+                    eyre-id
+                    %-  result:rpc
+                    :-  p.u.id
+                    %-  pairs:enjs:format
+                    :~  :-  'contents'
+                        :-  %a
+                        :~  %-  pairs:enjs:format
+                            :~  ['uri' s+u.uri]
+                                ['mimeType' s+'application/json']
+                                ['text' s+(en:json:html scry-json)]
+                            ==
+                        ==
+                    ==
+                ==
+              ==
             ::
-                %'cx'
-              =/  scry-result
-                %-  mule
-                |.
-                  .^  *
-                      %cx
-                      (welp /(scot %p our.bowl) scry-path)
-                  ==
-              ?>  ?=([? p=*] scry-result)
-              ?.  -.scry-result
+                %c
+              ?+    care
+                  :_  this
+                  (send-event eyre-id (params:error:rpc p.u.id 'Unsupported Clay scry care' ~))
+              ::
+                  %x
+                =/  parsed-beam=(unit beam)
+                  (de-beam (welp /(scot %p our.bowl) scry-path))
+                ?~  parsed-beam
+                  :_  this
+                  (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid Clay scry path {<u.uri>}") ~))
                 :_  this
-                (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
-              :_  this
-              %:  send-event
-                  eyre-id
-                  %-  result:rpc
-                  :-  p.u.id
-                  %-  pairs:enjs:format
-                  :~  :-  'contents'
-                      :-  %a
-                      :~  %-  pairs:enjs:format
-                          :~  ['uri' s+u.uri]
-                              ['mimeType' s+'text/plain']
-                              ['text' s+(crip "{<p.scry-result>}")]
-                          ==
-                      ==
-              ==  ==
+                :~  :*  %pass
+                        /response/resource/scry/clay/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                        %arvo
+                        %c
+                        %warp
+                        :*  p.u.parsed-beam
+                            q.u.parsed-beam
+                            ~
+                            %sing  %x
+                            r.u.parsed-beam
+                            s.u.parsed-beam
+                        ==
+                ==  ==
+              ==
             ==
           ==
         ::
@@ -1067,6 +1075,41 @@
                         :-  %s
                         ?~  riot
                           'Failed to fetch file.'
+                        %-  crip
+                        %-  print-tang-to-wain
+                        %-  pretty-file:pf
+                        !<(noun q.r.u.riot)
+                    ==
+                  ?~  riot
+                    ~
+                  :~  ['mimeType' s+(mark-mime p.r.u.riot)]
+                  ==
+              ==
+          ==
+      ==
+    ==
+  ::
+      [%response %resource %scry %clay eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+    ::
+        [%clay %writ *]
+      =/  [%clay %writ =riot:clay]  sign-arvo
+      :_  this
+      %:  send-event
+          eyre-id.pole
+          %-  result:rpc
+          :-  rpc-id.pole
+          %-  pairs:enjs:format
+          :~  :-  'contents'
+              :-  %a
+              :~  %-  pairs:enjs:format
+                  %+  welp
+                    :~  ['uri' s+uri.pole]
+                        :-  'text'
+                        :-  %s
+                        ?~  riot
+                          'Failed to perform Clay scry.'
                         %-  crip
                         %-  print-tang-to-wain
                         %-  pretty-file:pf
