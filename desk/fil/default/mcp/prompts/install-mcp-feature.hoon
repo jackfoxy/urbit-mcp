@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
 :*  'Install MCP feature'
-    'install-mcp-feature'
+    'mcp/install-mcp-feature'
     '''
     Install a single MCP feature from a beam URI by building and adding it to the mcp-server state.
     '''

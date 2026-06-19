@@ -1,8 +1,8 @@
 /-  mcp
 ^-  resource:mcp
 :*  'beam://=/base/=/sur/spider/hoon'
-    'Spider API'
-    ~
+    'mcp/spider'
+    `'Spider types'
     ~
     `'text/hoon'
     ~

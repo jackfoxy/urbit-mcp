@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/install-app'
+:*  'mcp/install-app'
     '''
     Install a desk (local or remote).
     '''

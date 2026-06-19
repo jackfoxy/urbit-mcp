@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio, libstrand=strand
 ^-  tool:mcp
-:*  'urbit/mcp/run-tests'
+:*  'mcp/run-tests'
     '''
     Run unit tests and/or integration tests, given a desk and a path prefix.
     '''

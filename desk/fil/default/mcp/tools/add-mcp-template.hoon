@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/add-mcp-template'
+:*  'mcp/add-mcp-template'
     '''
     Add a new MCP Resource Template to the %mcp-server agent state.
     '''

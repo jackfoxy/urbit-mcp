@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/add-mcp-prompt'
+:*  'mcp/add-mcp-prompt'
     '''
     Add a new MCP Prompt to the %mcp-server agent state.
     '''

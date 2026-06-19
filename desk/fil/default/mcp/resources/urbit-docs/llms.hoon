@@ -1,8 +1,8 @@
 /-  mcp
 ^-  resource:mcp
 :*  'https://docs.urbit.org/llms.txt'
-    'Urbit Docs LLMs'
-    ~
+    'mcp/docs/llms'
+    `'Urbit Docs LLMs'
     ~
     `'text/markdown'
     ~

@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
 :*  'Dojo command'
-    'dojo'
+    'mcp/dojo'
     '''
     Run the given command in the Dojo
     '''

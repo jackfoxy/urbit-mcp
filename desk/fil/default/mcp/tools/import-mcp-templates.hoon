@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/import-mcp-templates'
+:*  'mcp/import-mcp-templates'
     'Import MCP Resource Templates from a desk.'
     %-  my
     :~  ['desk' [%string 'Desk to import MCP Resource Templates from.']]

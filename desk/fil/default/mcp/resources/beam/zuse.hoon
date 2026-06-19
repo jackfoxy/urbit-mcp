@@ -1,8 +1,8 @@
 /-  mcp
 ^-  resource:mcp
 :*  'beam://=/base/=/sys/zuse/hoon'
-    'Zuse'
-    ~
+    'mcp/zuse'
+    `'Zuse'
     ~
     `'text/hoon'
     ~

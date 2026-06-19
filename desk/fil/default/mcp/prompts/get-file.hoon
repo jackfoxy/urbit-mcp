@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
 :*  'Get file'
-    'get-file'
+    'mcp/get-file'
     '''
     Fetch a Clay file on the local ship
     '''

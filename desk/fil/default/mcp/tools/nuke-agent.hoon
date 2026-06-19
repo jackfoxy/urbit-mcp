@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/dojo/nuke-agent'
+:*  'dojo/nuke-agent'
     '''
     Permanently wipe the state of a Gall agent.
     You can also nuke an entire desk.
@@ -33,7 +33,7 @@
       %+  murn  tools
       |=  =tool:mcp
       ^-  (unit tool:mcp)
-      ?.  =(name.tool 'urbit/dojo/command')
+      ?.  =(name.tool 'dojo/command')
         ~
       `tool
     ?~  dojo-tools

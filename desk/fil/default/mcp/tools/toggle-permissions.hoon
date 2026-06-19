@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/toggle-permissions'
+:*  'mcp/toggle-permissions'
     '''
     Make a whole desk public or private.
     '''

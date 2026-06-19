@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
 :*  'Commit desk'
-    'commit-desk'
+    'mcp/commit-desk'
     '''
     Commit changes to a desk.
     '''

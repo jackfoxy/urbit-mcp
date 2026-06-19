@@ -16,7 +16,7 @@
 --
 ::
 ^-  tool:mcp
-:*  'urbit/mcp/scry-agent'
+:*  'mcp/scry-agent'
   '''
   Run a %gx scry (read) to retrieve data from a Gall agent.
   The endpoint must return JSON for this tool to work.

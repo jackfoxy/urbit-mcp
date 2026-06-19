@@ -2,7 +2,7 @@
 /+  io=strandio, libstrand=strand
 =,  strand=strand:libstrand
 ^-  tool:mcp
-:*  'urbit/mcp/commit-desk'
+:*  'mcp/commit-desk'
     '''
     Commit code changes to a desk.
     '''

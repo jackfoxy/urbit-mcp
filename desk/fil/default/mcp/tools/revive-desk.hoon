@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/dojo/revive-desk'
+:*  'dojo/revive-desk'
     '''
     Boot the agents on a nuked / suspended desk.
     '''
@@ -32,7 +32,7 @@
       %+  murn  tools
       |=  =tool:mcp
       ^-  (unit tool:mcp)
-      ?.  =(name.tool 'urbit/dojo/command')
+      ?.  =(name.tool 'dojo/command')
         ~
       `tool
     ?~  dojo-tools

@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/poke-our-agent'
+:*  'mcp/poke-our-agent'
   '''
   Poke a Gall agent with data of a specified mark.
   '''

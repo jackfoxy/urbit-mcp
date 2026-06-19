@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit/mcp/add-mcp-tool'
+:*  'mcp/add-mcp-tool'
     '''
     Add a new MCP Tool to the %mcp-server agent state.
     '''
