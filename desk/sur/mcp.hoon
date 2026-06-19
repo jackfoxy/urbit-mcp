@@ -8,9 +8,11 @@
   +$  desc  @t
   ::
   +$  parameters
+    $+  mcp-tool-parameters
     (map name:parameter def:parameter)
   ::
   +$  required
+    $+  mcp-tool-required-parameters
     (list name:parameter)
   ::
   +$  tool
@@ -27,6 +29,7 @@
     $-((map name:parameter argument) shed:khan)
   ::
   +$  argument
+    $+  mcp-tool-argument
     $@  ~
     $%  [%string p=@t]
         [%number p=@ud]
@@ -36,6 +39,7 @@
     ==
   ::
   +$  response
+    $+  mcp-tool-response
     $%  [%error message=@t data=(unit json)]
         $:  %result
             $%  [%structured =json]
@@ -45,6 +49,7 @@
     ==
   ::
   +$  result
+    $+  mcp-tool-result
     $%  [%text text=@t]
         [%audio data=@t mime=@t]
         [%resource-link uri=@t name=@t desc=@t mime=@t]
