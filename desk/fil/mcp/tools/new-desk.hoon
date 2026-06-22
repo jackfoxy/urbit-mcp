@@ -1,5 +1,5 @@
 /-  mcp, spider
-/+  io=strandio
+/=  dojo-command  /fil/mcp/tools/dojo-command
 ^-  tool:mcp
 :*  'dojo/new-desk'
     '''
@@ -23,22 +23,7 @@
     ?~  desk-arg  (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string @t] u.desk-arg)
     =/  dek=@tas  (@tas p.u.desk-arg)
-    ;<  =bowl:rand  bind:m  get-bowl:io
-    =/  tools=(list tool:mcp)
-      .^  (list tool:mcp)
-          %gx
-          /(scot %p our.bowl)/mcp-server/(scot %da now.bowl)/mcp/tools/noun
-      ==
-    =/  dojo-tools=(list tool:mcp)
-      %+  murn  tools
-      |=  =tool:mcp
-      ^-  (unit tool:mcp)
-      ?.  =(name.tool 'dojo/command')
-        ~
-      `tool
-    ?~  dojo-tools
-      (pure:m !>([%error %dojo-command-tool-not-in-mcp-server ~]))
-    %-  thread-builder.i.dojo-tools
+    %-  thread-builder.dojo-command
     %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
     :~  ['command' [%string (crip "|new-desk {<dek>}")]]
     ==
