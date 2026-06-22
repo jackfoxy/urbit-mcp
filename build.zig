@@ -1,11 +1,17 @@
 const std = @import("std");
 
+const Action = enum {
+    build, // zig build       -> build /dist
+    clean, // zig build clean -> remove /dist
+    clear, // zig build clear -> remove /dist and cached imports
+};
+
 const RepoImport = struct {
     name: []const u8,          // any name
     url: []const u8,           // git repo url
     commit: []const u8,        // commit hash
-    prefix: []const u8,        // path prefix to remove
-    paths: []const []const u8, // filepaths to import
+    prefix: []const u8,        // repository prefix, omitted from /dist
+    paths: []const []const u8, // relative or prefix-qualified filepaths
 };
 
 const dependencies = [_]RepoImport{
@@ -15,7 +21,7 @@ const dependencies = [_]RepoImport{
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
         .prefix = "pkg/arvo",
         .paths = &.{
-            "pkg/arvo/lib/pretty-file.hoon",
+            "lib/pretty-file.hoon",
         },
     },
     .{
@@ -24,7 +30,7 @@ const dependencies = [_]RepoImport{
         .commit = "9f0c94771e4773567a2f55a727ffa31b0f6e8e9f",
         .prefix = "desk",
         .paths = &.{
-            "desk/lib/test-agent.hoon",
+            "lib/test-agent.hoon",
         },
     },
     .{
@@ -33,38 +39,32 @@ const dependencies = [_]RepoImport{
         .commit = "0f94550b941dfe046d9dff4a541330bd084e8cd1",
         .prefix = "pkg/base-dev",
         .paths = &.{
-            "pkg/base-dev/lib/dbug.hoon",
-            "pkg/base-dev/lib/default-agent.hoon",
-            "pkg/base-dev/lib/server.hoon",
-            "pkg/base-dev/lib/skeleton.hoon",
-            "pkg/base-dev/lib/strand.hoon",
-            "pkg/base-dev/lib/strandio.hoon",
-            "pkg/base-dev/lib/test.hoon",
-            "pkg/base-dev/lib/verb.hoon",
-            "pkg/base-dev/mar/bill.hoon",
-            "pkg/base-dev/mar/hoon.hoon",
-            "pkg/base-dev/mar/json.hoon",
-            "pkg/base-dev/mar/kelvin.hoon",
-            "pkg/base-dev/mar/mime.hoon",
-            "pkg/base-dev/mar/noun.hoon",
-            "pkg/base-dev/mar/ship.hoon",
-            "pkg/base-dev/mar/sole/action.hoon",
-            "pkg/base-dev/mar/sole/effect.hoon",
-            "pkg/base-dev/mar/txt.hoon",
-            "pkg/base-dev/sur/sole.hoon",
-            "pkg/base-dev/sur/spider.hoon",
-            "pkg/base-dev/sur/verb.hoon",
+            "lib/dbug.hoon",
+            "lib/default-agent.hoon",
+            "lib/server.hoon",
+            "lib/skeleton.hoon",
+            "lib/strand.hoon",
+            "lib/strandio.hoon",
+            "lib/test.hoon",
+            "lib/verb.hoon",
+            "mar/bill.hoon",
+            "mar/hoon.hoon",
+            "mar/json.hoon",
+            "mar/kelvin.hoon",
+            "mar/mime.hoon",
+            "mar/noun.hoon",
+            "mar/ship.hoon",
+            "mar/sole/action.hoon",
+            "mar/sole/effect.hoon",
+            "mar/txt.hoon",
+            "sur/sole.hoon",
+            "sur/spider.hoon",
+            "sur/verb.hoon",
         },
     },
 };
 
 const dependency_cache_dir = ".zig-cache/desk-deps";
-
-const Action = enum {
-    build, // build /dist
-    clean, // remove /dist
-    clear, // remove /dist and .zig-cache/desk-deps
-};
 
 const DeskStep = struct {
     step: std.Build.Step,
@@ -162,8 +162,9 @@ fn importDependency(
     try ensureRepoImport(step, repo_path, dep);
 
     for (dep.paths) |path| {
-        const rel = try strippedPath(step, dep.prefix, path);
-        const source_path = try std.fs.path.join(allocator, &.{ repo_path, path });
+        const import_path = try prefixedPath(allocator, dep.prefix, path);
+        const rel = strippedPath(dep.prefix, path);
+        const source_path = try std.fs.path.join(allocator, &.{ repo_path, import_path });
         const dest_path = try std.fs.path.join(allocator, &.{ dist_path, rel });
         try copyFilePath(source_path, dest_path);
     }
@@ -200,7 +201,7 @@ fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const 
     try argv.append(step.owner.allocator, "set");
     try argv.append(step.owner.allocator, "--no-cone");
     for (dep.paths) |path| {
-        try argv.append(step.owner.allocator, path);
+        try argv.append(step.owner.allocator, try prefixedPath(step.owner.allocator, dep.prefix, path));
     }
     try run(step, argv.items);
 }
@@ -249,19 +250,31 @@ fn runAllowFail(step: *std.Build.Step, argv: []const []const u8) bool {
     };
 }
 
-fn strippedPath(step: *std.Build.Step, prefix: []const u8, pick: []const u8) ![]const u8 {
-    if (!std.mem.startsWith(u8, pick, prefix)) {
-        return step.fail("pick '{s}' is not under prefix '{s}'", .{ pick, prefix });
-    }
+fn prefixedPath(allocator: std.mem.Allocator, prefix: []const u8, path: []const u8) ![]const u8 {
+    if (prefix.len == 0 or hasPathPrefix(prefix, path)) return path;
+    return std.fs.path.join(allocator, &.{ prefix, path });
+}
 
-    var rel = pick[prefix.len..];
-    if (rel.len > 0 and rel[0] == '/') {
-        rel = rel[1..];
-    }
-    if (rel.len == 0) {
-        return step.fail("pick '{s}' resolves to an empty destination path", .{pick});
-    }
-    return rel;
+fn strippedPath(prefix: []const u8, path: []const u8) []const u8 {
+    if (!hasPathPrefix(prefix, path)) return path;
+    if (path.len == prefix.len) return path[path.len..];
+    return path[prefix.len + 1 ..];
+}
+
+fn hasPathPrefix(prefix: []const u8, path: []const u8) bool {
+    if (prefix.len == 0 or !std.mem.startsWith(u8, path, prefix)) return false;
+    return path.len == prefix.len or path[prefix.len] == '/';
+}
+
+test "dependency paths may include or omit their prefix" {
+    const added = try prefixedPath(std.testing.allocator, "desk", "mar/example.hoon");
+    defer std.testing.allocator.free(added);
+
+    try std.testing.expectEqualStrings("desk/mar/example.hoon", added);
+    try std.testing.expectEqualStrings("desk/mar/example.hoon", try prefixedPath(std.testing.allocator, "desk", "desk/mar/example.hoon"));
+    try std.testing.expectEqualStrings("mar/example.hoon", strippedPath("desk", "desk/mar/example.hoon"));
+    try std.testing.expectEqualStrings("mar/example.hoon", strippedPath("desk", "mar/example.hoon"));
+    try std.testing.expectEqualStrings("desk-tools/example.hoon", strippedPath("desk", "desk-tools/example.hoon"));
 }
 
 fn expandHomePath(allocator: std.mem.Allocator, step: *std.Build.Step, path: []const u8) ![]const u8 {
