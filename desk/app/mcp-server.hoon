@@ -222,7 +222,7 @@
           %+  turn
             .^  (list path)
                 %ct
-                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp
+                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/mcp
             ==
           |=  pax=path
           ^-  beam
