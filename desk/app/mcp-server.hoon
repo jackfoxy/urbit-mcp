@@ -1,10 +1,11 @@
 /-  mcp
-/+  dbug, verb, server, default-agent,
-    jut=json-utils, ml=mcp
+/+  dbug, verb, server, default-agent, pf=pretty-file,
+    jut=json-utils, *rpc, beam-uri=uri-beam, scry-uri=uri-scry
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
 /$  resources-to-json  %mcp-resources  %json
+/$  templates-to-json  %mcp-templates  %json
 ::
 |%
 ++  mcp-protocol-version  %'2025-11-25'
@@ -20,6 +21,46 @@
     (wash [0 80] tank)
   |=  =tape
   (crip tape)
+::
+++  mark-mime
+  |=  =mark
+  ^-  @t
+  ?+  mark  'application/octet-stream'
+    %css   'text/css'
+    %hoon  'text/hoon'
+    %html  'text/html'
+    %js    'text/javascript'
+    %json  'application/json'
+    %md    'text/markdown'
+    %txt   'text/plain'
+    %xml   'application/xml'
+  ==
+::
+++  loopback-authority
+  |=  authority=tape
+  ^-  ?
+  =/  suffix=(unit tape)
+    ?:  =("localhost" (scag 9 authority))
+      `(slag 9 authority)
+    ?:  =("127.0.0.1" (scag 9 authority))
+      `(slag 9 authority)
+    ?:  =("[::1]" (scag 5 authority))
+      `(slag 5 authority)
+    ~
+  ?~  suffix  %.n
+  ?~  u.suffix  %.y
+  ?.  =(':' i.u.suffix)  %.n
+  ?=(^ (rush (crip t.u.suffix) dim:ag))
+::
+++  loopback-origin
+  |=  origin=@t
+  ^-  ?
+  =/  origin-tape=tape  (trip origin)
+  ?:  =("http://" (scag 7 origin-tape))
+    (loopback-authority (slag 7 origin-tape))
+  ?:  =("https://" (scag 8 origin-tape))
+    (loopback-authority (slag 8 origin-tape))
+  %.n
 ::
 ++  simple-response
   |=  [eyre-id=@ta status=@ud headers=(list [key=@t value=@t])]
@@ -43,6 +84,64 @@
     %-  some
     %-  as-octt:mimes:html
     (trip (en:json:html json))
+::
+++  sse-data
+  |=  =json
+  ^-  octs
+  %-  as-octt:mimes:html
+  (trip (cat 3 'data: ' (cat 3 (en:json:html json) '\0a\0a')))
+::
+++  send-sse-start
+  |=  eyre-id=@ta
+  ^-  (list card)
+  =/  response-header=response-header:http
+    :-  200
+    :~  ['content-type' 'text/event-stream']
+        ['cache-control' 'no-cache']
+        ['connection' 'keep-alive']
+        ['MCP-Protocol-Version' mcp-protocol-version]
+    ==
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-header !>(response-header)]
+      ==
+      :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(as-octt:mimes:html ":\0a\0a"))]
+      ==
+  ==
+::
+++  send-sse-json
+  |=  [eyre-id=@ta =json]
+  ^-  (list card)
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(sse-data json))]
+      ==
+  ==
+::
+++  list-changed-notification
+  |=  method=@t
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['jsonrpc' s+'2.0']
+      ['method' s+method]
+  ==
+::
+++  broadcast-list-changed
+  |=  [=bowl:gall sse-sessions=(map @ta session:mcp) method=@t]
+  ^-  (list card:agent:gall)
+  =/  notification=json  (list-changed-notification method)
+  %-  zing
+  %+  murn
+    ~(tap by sse-sessions)
+  |=  [eyre-id=@ta session:mcp]
+  ^-  (unit (list card:agent:gall))
+  =/  live=?
+    %+  lien
+      ~(tap by sup.bowl)
+    |=  [=duct =ship pat=path]
+    =(pat /http-response/[eyre-id])
+  ?.  live
+    ~
+  `(send-sse-json eyre-id notification)
 ::
 ::  +json-response: respond with status code and JSON body
 ::    Used for endpoints that must return JSON (e.g. OAuth discovery
@@ -73,6 +172,9 @@
       tools=(set tool:mcp)
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
+      templates=(set template:resource:mcp)
+      ::  map eyre-id to session:mcp
+      sse-sessions=(map @ta session:mcp)
   ==
 --
 %-  agent:dbug
@@ -146,7 +248,7 @@
           %+  turn
             .^  (list path)
                 %ct
-                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp
+                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/mcp
             ==
           |=  pax=path
           ^-  beam
@@ -166,17 +268,170 @@
           %handle-http-request
         (handle-req !<([@ta inbound-request:eyre] vase))
       ::
-          ?(%add-tool %add-prompt %add-resource)
+          ?(%import-tools %import-prompts %import-resources %import-templates)
         ?>  =(src our):bowl
-        ::  XX send listChanged notification
-        :-  ~
+        =/  desk=@t  !<(@t vase)
+        =/  notif=@t
+          ?-  mark
+            %import-tools      'notifications/tools/list_changed'
+            %import-prompts    'notifications/prompts/list_changed'
+            %import-resources  'notifications/resources/list_changed'
+            %import-templates  'notifications/resources/list_changed'
+          ==
+        :-  (broadcast-list-changed bowl sse-sessions notif)
+        ?-    mark
+            %import-tools
+          =/  imported=(list tool:mcp)
+            .^  (list tool:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/tools/noun
+            ==
+          %=  this
+            tools   %-  silt
+                    %+  weld
+                      imported
+                    %+  murn
+                      ~(tap in tools)
+                    |=  old=tool:mcp
+                    ^-  (unit tool:mcp)
+                    ?:  %+  lien
+                          imported
+                        |=  new=tool:mcp
+                        =(name.new name.old)
+                      ~
+                    `old
+          ==
+        ::
+            %import-prompts
+          =/  imported=(list prompt:mcp)
+            .^  (list prompt:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/prompts/noun
+            ==
+          %=  this
+            prompts  %-  silt
+                     %+  weld
+                       imported
+                     %+  murn
+                       ~(tap in prompts)
+                     |=  old=prompt:mcp
+                     ^-  (unit prompt:mcp)
+                     ?:  %+  lien
+                           imported
+                         |=  new=prompt:mcp
+                         =(title.new title.old)
+                         ~
+                       `old
+          ==
+        ::
+            %import-templates
+          =/  imported=(list template:resource:mcp)
+            .^  (list template:resource:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/templates/noun
+            ==
+          %=  this
+            templates  %-  silt
+                       %+  weld
+                         imported
+                       %+  murn
+                         ~(tap in templates)
+                       |=  old=template:resource:mcp
+                       ^-  (unit template:resource:mcp)
+                       ?:  %+  lien
+                             imported
+                           |=  new=template:resource:mcp
+                           =(name.new name.old)
+                         ~
+                       `old
+          ==
+        ::
+            %import-resources
+          =/  imported=(list resource:mcp)
+            .^  (list resource:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/resources/noun
+            ==
+          %=  this
+            resources  %-  silt
+                       %+  weld
+                         imported
+                       %+  murn
+                         ~(tap in resources)
+                       |=  old=resource:mcp
+                       ^-  (unit resource:mcp)
+                       ?:  %+  lien
+                             imported
+                           |=  new=resource:mcp
+                           =(uri.new uri.old)
+                         ~
+                       `old
+          ==
+        ==
+      ::
+          ?(%add-tool %add-prompt %add-resource %add-template)
+        ?>  =(src our):bowl
+        =/  notif=@t
+          ?-  mark
+            %add-tool      'notifications/tools/list_changed'
+            %add-prompt    'notifications/prompts/list_changed'
+            %add-resource  'notifications/resources/list_changed'
+            %add-template  'notifications/resources/list_changed'
+          ==
+        :-  (broadcast-list-changed bowl sse-sessions notif)
         ?-  mark
           %add-tool
-            this(tools (~(put in tools) !<(tool:mcp vase)))
+            =/  new=tool:mcp  !<(tool:mcp vase)
+            %=  this
+              tools   %-  silt
+                      :-  new
+                      %+  murn
+                        ~(tap in tools)
+                      |=  old=tool:mcp
+                      ^-  (unit tool:mcp)
+                      ?:  =(name.new name.old)
+                        ~
+                      `old
+            ==
           %add-prompt
-            this(prompts (~(put in prompts) !<(prompt:mcp vase)))
+            =/  new=prompt:mcp  !<(prompt:mcp vase)
+            %=  this
+              prompts  %-  silt
+                       :-  new
+                       %+  murn
+                         ~(tap in prompts)
+                       |=  old=prompt:mcp
+                       ^-  (unit prompt:mcp)
+                       ?:  =(title.new title.old)
+                         ~
+                       `old
+            ==
           %add-resource
-            this(resources (~(put in resources) !<(resource:mcp vase)))
+            =/  new=resource:mcp  !<(resource:mcp vase)
+            %=  this
+              resources  %-  silt
+                         :-  new
+                         %+  murn
+                           ~(tap in resources)
+                         |=  old=resource:mcp
+                         ^-  (unit resource:mcp)
+                         ?:  =(uri.new uri.old)
+                           ~
+                           `old
+            ==
+          %add-template
+            =/  new=template:resource:mcp  !<(template:resource:mcp vase)
+            %=  this
+              templates  %-  silt
+                         :-  new
+                         %+  murn
+                           ~(tap in templates)
+                         |=  old=template:resource:mcp
+                         ^-  (unit template:resource:mcp)
+                         ?:  =(name.new name.old)
+                           ~
+                           `old
+            ==
         ==
       ==
   ++  handle-req
@@ -195,7 +450,31 @@
       =/  h=(unit @t)
         (get-header:http 'host' header-list.request.req)
       ?~(h 'localhost' u.h)
-    =/  base=@t  (rap 3 'http://' host ~)
+    ::
+    ::  Enforce HTTPS outside loopback, and reject browser origins
+    ::  that do not correspond to the local endpoint or our EAuth URL.
+    =/  local=?  (loopback-authority (trip host))
+    ?.  ?|(secure.req local)
+      [(simple-response eyre-id 400 ~) this]
+    =/  origin=(unit @t)
+      (get-header:http 'origin' header-list.request.req)
+    =/  origin-allowed=?
+      ?~  origin
+        .y
+      ?:  local
+        (loopback-origin u.origin)
+      =/  eauth=(unit @t)
+        .^  (unit @t)
+            %ex
+            /(scot %p our.bowl)//(scot %da now.bowl)/eauth/url
+        ==
+      ?~  eauth
+        .n
+      =(u.origin u.eauth)
+    ?.  origin-allowed
+      [(simple-response eyre-id 403 ~) this]
+    =/  base=@t
+      (rap 3 ?.(secure.req 'http://' 'https://') host ~)
     ::  RFC 9728 protected-resource metadata at the spec'd path.
     ::  Empty authorization_servers + bearer_methods=header tells
     ::  the client to use the auth header it already has.
@@ -252,15 +531,26 @@
       (json-response eyre-id 400 err)
     ?.  authenticated.req
       :_  this
-      (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
+      (send-event eyre-id (internal:error:rpc '0' 'Authentication required' ~))
     ?+  method.request.req
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      [(simple-response eyre-id 405 ~[['allow' 'GET, POST']]) this]
     ::
         %'GET'
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      =/  accept=(unit @t)
+        (get-header:http 'accept' header-list.request.req)
+      ?~  accept
+        [(simple-response eyre-id 406 ~) this]
+      ?.  ?=(^ (find "text/event-stream" (trip u.accept)))
+        [(simple-response eyre-id 406 ~) this]
+      =/  session-id=@t
+        ?~  get-session=(get-header:http 'mcp-session-id' header-list.request.req)
+          eyre-id
+        u.get-session
+      :_  this(sse-sessions (~(put by sse-sessions) eyre-id session-id))
+      (send-sse-start eyre-id)
     ::
         %'DELETE'
-      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+      [(simple-response eyre-id 405 ~[['allow' 'GET, POST']]) this]
     ::
         %'POST'
       =/  client-protocol-version=(unit @t)
@@ -304,11 +594,15 @@
           [(simple-response eyre-id 400 ~) this]
         %.  u.parsed
         |=  jon=json
-        =/  id=(unit json)      (~(get jo:jut jon) /id)
         =/  method=(unit json)  (~(get jo:jut jon) /method)
+        ?:  =([~ [%s %'notifications/initialized']] method)
+          [(simple-response eyre-id 202 ~[['MCP-Protocol-Version' mcp-protocol-version]]) this]
+        =/  id=(unit json)      (~(get jo:jut jon) /id)
+        ?>  ?=(^ id)
+        ?>  ?=([%n p=@ta] u.id)
         ?+  method
           :_  this
-          (send-event eyre-id (method:error:rpc:ml 'Method not found' id))
+          (send-event eyre-id (method:error:rpc p.u.id 'Method not found' ~))
         ::
             [~ [%s %'notifications/initialized']]
           [(simple-response eyre-id 202 ~[['MCP-Protocol-Version' mcp-protocol-version]]) this]
@@ -320,21 +614,22 @@
           %:  send-event
               eyre-id
               %-  pairs:enjs:format
-              %+  welp
-                ?~(id ~ ['id' u.id]~)
-              :~  ['jsonrpc' s+'2.0']
+              :~  ['id' n+p.u.id]
+                  ['jsonrpc' s+'2.0']
                   :-  'result'
                   %-  pairs:enjs:format
                       :~  ['protocolVersion' s+mcp-protocol-version]
                       :-  'capabilities'
                       %-  pairs:enjs:format
                       :~  :-  'tools'
-                          ::  XX change to %.y once we support listChanged notifs
-                          (pairs:enjs:format ~[['listChanged' b+%.n]])
-                          :-  'resources'
-                          (pairs:enjs:format ~[['subscribe' b+%.n] ['listChanged' b+%.n]])
+                          (pairs:enjs:format ~[['listChanged' b+%.y]])
                           :-  'prompts'
-                          (pairs:enjs:format ~[['listChanged' b+%.n]])
+                          (pairs:enjs:format ~[['listChanged' b+%.y]])
+                          :-  'resources'
+                          %-  pairs:enjs:format
+                          :~  ['subscribe' b+%.n]
+                              ['listChanged' b+%.y]
+                          ==
                       ==
                       :-  'serverInfo'
                       %-  pairs:enjs:format
@@ -345,22 +640,31 @@
         ::
             [~ [%s %'tools/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (tools-to-json ~(tap in tools)) id))
+          (send-event eyre-id (result:rpc p.u.id (tools-to-json ~(tap in tools))))
         ::
             [~ [%s %'resources/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (resources-to-json ~(tap in resources)) id))
+          (send-event eyre-id (result:rpc p.u.id (resources-to-json ~(tap in resources))))
+        ::
+            [~ [%s %'resources/templates/list']]
+          :_  this
+          (send-event eyre-id (result:rpc p.u.id (templates-to-json ~(tap in templates))))
         ::
             [~ [%s %'prompts/list']]
           :_  this
-          (send-event eyre-id (result:rpc:ml (prompts-to-json ~(tap in prompts)) id))
+          (send-event eyre-id (result:rpc p.u.id (prompts-to-json ~(tap in prompts))))
         ::
             [~ [%s %'resources/read']]
+         =/  request-id=(unit @ud)
+           (bind id ni:dejs:format)
+         ?~  request-id
+           :_  this
+           (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
           =/  uri=(unit @t)
             (~(deg jo:jut jon) /params/uri so:dejs:format)
           ?~  uri
             :_  this
-            (send-event eyre-id (params:error:rpc:ml 'Missing or invalid resource URI' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid resource URI' ~))
           =/  scheme=cord
             %-  crip
             %-  head
@@ -382,107 +686,37 @@
             :_  this
             %:  send-event
                 eyre-id
-                %:  request:error:rpc:ml
-                    (crip "Scheme not supported for URI {<u.uri>}")
-                    id
+                %:  request:error:rpc
+                    p.u.id
+                    'Scheme not supported for URI'
+                    `(frond:enjs:format %uri s+u.uri)
             ==  ==
           ::
               %'beam'
-            =>  |%
-                ++  parse-beam-uri
-                  |=  =cord
-                  ^-  (unit beam)
-                  ::  we don't need to validate the scheme here,
-                  ::  but a canonical beam:// URI parser should
-                  =/  stub-count
-                    %+  roll
-                      (trip cord)
-                    |=  [a=@tD b=@ud]
-                    ?:  =(a '=')
-                      +(b)
-                    b
-                  ?.  (gte 3 stub-count)
-                    ::  fail; a beam:// can have no more than three stubs
-                    ~
-                  ?:  =(0 stub-count)
-                    ::  skip dereferencing
-                    (de-beam (stab cord))
-                  |^  %.  %+  turn
-                            %+  split
-                              "/"
-                            ::  normalise e.g. /===/ to /=/=/=/
-                            ::  works for any combination of values and =
-                            %^    replace
-                                "=="
-                              "=/="
-                            ::  remove beam:/, leaving / prefix on the tape
-                            (oust [0 7] (trip cord))
-                          crip
-                      ::  replace = path segments with default values
-                      |=  =(pole @t)
-                      ^-  (unit beam)
-                      ?+  pole  ~
-                          [her=@t dek=@t cas=@t und=*]
-                        %-  de-beam
-                        %-  stab
-                        %-  crip
-                        ;:  welp
-                            "/"
-                            ?.  =('=' her.pole)  (trip her.pole)  "{<our.bowl>}"
-                            "/"
-                            ::  XX don't hard-code %base and do *desk?
-                            ?.  =('=' dek.pole)  (trip dek.pole)  "base"
-                            "/"
-                            ?.  =('=' cas.pole)  (trip cas.pole)  "{<now.bowl>}"
-                            "/"
-                            (zing (turn (join '/' und.pole) trip))
-                        ==
-                      ==
-                  ::
-                  :: ~lagrev-nocfep/yard/~2026.2.5/lib/string/hoon
-                  ++  replace
-                    |=  [bit=tape bot=tape =tape]
-                    ^-  ^tape
-                    |-
-                    =/  off  (find bit tape)
-                    ?~  off  tape
-                    =/  clr  (oust [(need off) (lent bit)] tape)
-                    $(tape :(weld (scag (need off) clr) bot (slag (need off) clr)))
-                  ::
-                  ++  split
-                    |=  [sep=tape =tape]
-                    ^-  (list ^tape)
-                    =|  res=(list ^tape)
-                    |-
-                    ?~  tape  (flop res)
-                    =/  off  (find sep tape)
-                    ?~  off  (flop [`^tape`tape `(list ^tape)`res])
-                    %=  $
-                      res   [(scag `@ud`(need off) `^tape`tape) res]
-                      tape  (slag +(`@ud`(need off)) `^tape`tape)
-                    ==
-                  --
-                --
             =/  parsed-beam=(unit beam)
-              (parse-beam-uri u.uri)
+              (parse:beam-uri byk.bowl u.uri)
             ?~  parsed-beam
               :_  this
               %:  send-event
                   eyre-id
-                  %:  request:error:rpc:ml
-                      (crip "Invalid beam {<u.uri>}")
-                      id
+                  %:  request:error:rpc
+                      p.u.id
+                      'Invalid beam'
+                      `(frond:enjs:format %uri s+u.uri)
               ==  ==
-            =/  request-id=(unit @ud)
-              (bind id ni:dejs:format)
-            ?~  request-id
-              :_  this
-              (send-event eyre-id (params:error:rpc:ml 'Missing or invalid JSON RPC request ID' ~))
             :_  this
-            :~  :*  %pass  /res/resource/[eyre-id]/(scot %ud u.request-id)
-                    %arvo  %k
-                    %fard  q.byk.bowl
-                    %read-beam  %beam  !>(parsed-beam)
+            :~  :*  %pass
+                    /response/resource/beam/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    %arvo
+                    %c
+                    %warp
+                    :*  p.u.parsed-beam
+                        q.u.parsed-beam
+                        ~
+                        %sing  %x
+                        r.u.parsed-beam
+                        s.u.parsed-beam
+                    ==
             ==  ==
           ::
               ?(%'http' %'https')
@@ -490,14 +724,133 @@
               (bind id ni:dejs:format)
             ?~  request-id
               :_  this
-              (send-event eyre-id (params:error:rpc:ml 'Missing or invalid JSON RPC request ID' ~))
+              (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
             :_  this
             :~  :*  %pass
-                    /res/resource/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    /response/resource/http/[eyre-id]/(scot %ud u.request-id)/[u.uri]
                     %arvo
                     %i
                     [%request [%'GET' u.uri ~ ~] *outbound-config:iris]
             ==  ==
+          ::
+              %'scry'
+            =/  parsed-scry-uri=(unit path)
+              (parse:scry-uri u.uri)
+            ?~  parsed-scry-uri
+              :_  this
+              %+  send-event
+                eyre-id
+              %:  request:error:rpc
+                  p.u.id
+                  'Invalid scry URI'
+                  `(frond:enjs:format %uri s+u.uri)
+              ==
+            =/  care-segment=@t  (head u.parsed-scry-uri)
+            =/  scry-path=path  (slag 1 u.parsed-scry-uri)
+            =/  vane=@t  (cut 3 [0 1] care-segment)
+            =/  care=@t  (cut 3 [1 1] care-segment)
+            ?+    vane
+                :_  this
+                %+  send-event
+                  eyre-id
+                %:  params:error:rpc
+                    p.u.id
+                    'Unknown or unsupported vane'
+                    `(frond:enjs:format %vane s+vane)
+                ==
+            ::
+                %g
+              ?+    care
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Unsupported Gall scry care'
+                      `(frond:enjs:format %care s+care)
+                  ==
+              ::
+                  %x
+                ?.  =(%json (rear scry-path))
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Gall scry resource path must end in /json'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
+                =/  scry-result
+                  %-  mule
+                  |.
+                    .^  *
+                        %gx
+                        %+  welp
+                          /(scot %p our.bowl)/[(head scry-path)]/(scot %da now.bowl)
+                        (slag 1 scry-path)
+                    ==
+                ?>  ?=([? p=*] scry-result)
+                ?.  -.scry-result
+                  :_  this
+                  (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+                =/  scry-json=json  (json p.scry-result)
+                :_  this
+                %:  send-event
+                    eyre-id
+                    %-  result:rpc
+                    :-  p.u.id
+                    %-  pairs:enjs:format
+                    :~  :-  'contents'
+                        :-  %a
+                        :~  %-  pairs:enjs:format
+                            :~  ['uri' s+u.uri]
+                                ['mimeType' s+'application/json']
+                                ['text' s+(en:json:html scry-json)]
+                            ==
+                        ==
+                    ==
+                ==
+              ==
+            ::
+                %c
+              ?+    care
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Unsupported Clay scry care'
+                      `(frond:enjs:format %care s+care)
+                  ==
+              ::
+                  %x
+                =/  parsed-beam=(unit beam)
+                  (de-beam (welp /(scot %p our.bowl) scry-path))
+                ?~  parsed-beam
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  request:error:rpc
+                      p.u.id
+                      'Invalid Clay scry path'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
+                :_  this
+                :~  :*  %pass
+                        /response/resource/scry/clay/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                        %arvo
+                        %c
+                        %warp
+                        :*  p.u.parsed-beam
+                            q.u.parsed-beam
+                            ~
+                            %sing  %x
+                            r.u.parsed-beam
+                            s.u.parsed-beam
+                        ==
+                ==  ==
+              ==
+            ==
           ==
         ::
             [~ [%s %'prompts/get']]
@@ -505,7 +858,7 @@
             (~(deg jo:jut jon) /params/name so:dejs:format)
           ?~  prompt-name
             :_  this
-            (send-event eyre-id (params:error:rpc:ml 'Missing or invalid prompt name' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid prompt name' ~))
           =/  prompt-results
             %+  murn
               ~(tap in prompts)
@@ -516,10 +869,22 @@
             `prompt
           ?~  prompt-results
             :_  this
-            (send-event eyre-id (method:error:rpc:ml (crip "Prompt {<u.prompt-name>} not found") id))
+            %+  send-event
+              eyre-id
+            %:  method:error:rpc
+                p.u.id
+                'Prompt not found'
+                `(frond:enjs:format %name s+u.prompt-name)
+            ==
           ?:  (gth 1 (lent prompt-results))
             :_  this
-            (send-event eyre-id (internal:error:rpc:ml (crip "Multiple {<u.prompt-name>} prompts found") id))
+            %+  send-event
+              eyre-id
+            %:  internal:error:rpc
+                p.u.id
+                'Multiple prompts found'
+                `(frond:enjs:format %name s+u.prompt-name)
+            ==
           =/  =prompt:mcp  i.prompt-results
           =/  prompt-args=(map name:argument:prompt:mcp @t)
             %+  fall
@@ -528,26 +893,42 @@
           :_  this
           %:  send-event
               eyre-id
-              %-  result:rpc:ml
-              :-  %-  pairs:enjs:format
-                  :~  ['description' s+desc.prompt]
-                      :-  'messages'
-                      %-  prompt-messages-to-json:ml
-                      (messages-builder.prompt prompt-args)
+              %-  result:rpc
+              :-  p.u.id
+              %-  pairs:enjs:format
+              :~  ['description' s+desc.prompt]
+                  :-  'messages'
+                  %.  (messages-builder.prompt prompt-args)
+                  |=  messages=(list message:prompt:mcp)
+                  ^-  json
+                  :-  %a
+                  %+  turn
+                    messages
+                  |=  =message:prompt:mcp
+                  ^-  json
+                  %-  pairs:enjs:format
+                  :~  ['role' s+role.message]
+                      :-  'content'
+                      %-  pairs:enjs:format
+                      :~  ['type' s+type.content.message]
+                          ?~  text.content.message
+                            ['text' s+'']
+                          ['text' s+u.text.content.message]
+                      ==
                   ==
-              id
+              ==
           ==
         ::
             [~ [%s %'tools/call']]
           =/  rpc-id=(unit @ud)  (bind id ni:dejs:format)
           ?~  rpc-id
             :_  this
-            (send-event eyre-id (params:error:rpc:ml 'Missing JSON RPC request ID' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Missing JSON RPC request ID' ~))
           :_  this
           =/  tool-name=(unit @t)
             (~(deg jo:jut jon) /params/name so:dejs:format)
           ?~  tool-name
-            (send-event eyre-id (params:error:rpc:ml 'Missing or invalid tool name' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid tool name' ~))
           =/  tool-results
             %+  murn
               ~(tap in tools)
@@ -558,18 +939,30 @@
               ~
             `foo
           ?~  tool-results
-            (send-event eyre-id (params:error:rpc:ml (crip "Tool {<u.tool-name>} not found") id))
+            %+  send-event
+              eyre-id
+            %:  params:error:rpc
+                p.u.id
+                'Tool not found'
+                `(frond:enjs:format %name s+u.tool-name)
+            ==
           ?:  (gth 1 (lent tool-results))
-            (send-event eyre-id (internal:error:rpc:ml (crip "Multiple {<u.tool-name>} tools found") id))
+            %+  send-event
+              eyre-id
+            %:  internal:error:rpc
+                p.u.id
+                'Multiple tools found'
+                `(frond:enjs:format %name s+u.tool-name)
+            ==
           =/  arguments=(unit json)  (~(get jo:jut jon) /params/arguments)
           ?~  arguments
-            (send-event eyre-id (params:error:rpc:ml 'Missing arguments' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Missing arguments' ~))
           =/  args-map=(unit (map @t json))
             ?:  ?=([%o *] u.arguments)
               `p.u.arguments
             ~
           ?~  args-map
-            (send-event eyre-id (params:error:rpc:ml 'Invalid arguments' id))
+            (send-event eyre-id (params:error:rpc p.u.id 'Invalid arguments' ~))
           =>  |%
               ++  parse-arg
                 |=  jon=json
@@ -594,7 +987,7 @@
                 ==
               --
           ^-  (list card)
-          :~  :*  %pass  /res/tool/[eyre-id]/(scot %ud u.rpc-id)
+          :~  :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)
                   %arvo  %k
                   %lard  q.byk.bowl
                   %-  thread-builder.i.tool-results
@@ -626,6 +1019,29 @@
     ::  read resource definitions
       [%x %mcp %resources ~]
     ``mcp-resources+!>(~(tap in resources))
+    ::
+    ::  .^(json %gx /=mcp-server=/mcp/templates/json)
+    ::  .^((list template:resource:mcp) %gx /=mcp-server=/mcp/templates/noun)
+    ::  read resource template definitions
+      [%x %mcp %templates ~]
+    ``mcp-templates+!>(~(tap in templates))
+    ::
+    ::  search for tools under a path (e.g. /urbit, /urbit/mcp)
+    ::  .^(json %gx /=mcp-server=/mcp/tools/urbit/mcp/json)
+    ::  .^((list tool:mcp) %gx /=mcp-server=/mcp/tools/urbit/mcp/noun)
+      [%x %mcp %tools pax=*]
+    =/  =path  pax.pole
+    %-  some
+    %-  some
+    :-  %mcp-tools
+    !>  ^-  (list tool:mcp)
+    %+  murn
+      ~(tap in tools)
+    |=  =tool:mcp
+    ^-  (unit tool:mcp)
+    ?.  =(path (scag (lent path) (stab (rap 3 '/' name.tool ~))))
+      ~
+    `tool
   ==
 ++  on-arvo
   |=  [=(pole knot) =sign-arvo]
@@ -640,7 +1056,7 @@
     %-  (slog leaf/"mcp: failed to bind {<dap.bowl>} to /mcp" ~)
     `this
   ::
-      [%res feat=@ta eyre-id=@ta rpc-id=@ta und=*]
+      [%response %tool eyre-id=@ta rpc-id=@ta ~]
     ?+  sign-arvo
       (on-arvo:def pole sign-arvo)
     ::
@@ -649,89 +1065,189 @@
         :_  this
         %+  send-event
           eyre-id.pole
-        (internal:error:rpc:ml (crip (print-tang-to-wain tang.p.p.sign-arvo)) `[%n rpc-id.pole])
+        (internal:error:rpc rpc-id.pole (crip (print-tang-to-wain tang.p.p.sign-arvo)) ~)
       ?>  ?=([%khan %arow %.y %noun *] sign-arvo)
       =/  [%khan %arow %.y %noun =vase]  sign-arvo
-      =/  result=json  !<(json vase)
-      ?+  feat.pole
+      =/  =response:tool:mcp  !<(response:tool:mcp vase)
         :_  this
         %+  send-event
           eyre-id.pole
-        (internal:error:rpc:ml 'Unknown response type' `[%n rpc-id.pole])
-      ::
-          %tool
-        =/  response-text=(unit @t)
-          ?+  result
-            ~
-          ::
-              [%s *]
-            `p.result
-          ::
-              [%o *]
-            =/  typ=(unit @t)  (~(deg jo:jut result) /type so:dejs:format)
-            =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
-            ?~  typ
-              ~
-            ?~  txt
-              ~
-            ?.  =(u.typ 'text')
-              ~
-            txt
+        ?-    -.response
+            %error
+          %-  pairs:enjs:format
+          :~  ['id' n+rpc-id.pole]
+              ['jsonrpc' s+'2.0']
+              :-  'result'
+              %-  pairs:enjs:format
+              %-  zing
+              :~  :~  :-  'content'
+                      :-  %a
+                      :~  %-  pairs:enjs:format
+                          :~  ['type' s+'text']
+                              ['text' s+message.response]
+                          ==
+                      ==
+                  ==
+                  ?~  data.response
+                    ~
+                  :~  ['structuredContent' u.data.response]
+                  ==
+                  :~  ['isError' b+.y]
+                  ==
+              ==
           ==
-        ?~  response-text
-          :_  this
-          %+  send-event
-            eyre-id.pole
-          (internal:error:rpc:ml 'Invalid tool response format' `[%n rpc-id.pole])
-        :_  this
-        %+  send-event
-          eyre-id.pole
-        (mcp-text-result:ml u.response-text `[%n rpc-id.pole])
-      ::
-          %resource
-        =/  uri=(unit @t)  (~(deg jo:jut result) /uri so:dejs:format)
-        =/  mym=(unit @t)  (~(deg jo:jut result) /mime-type so:dejs:format)
-        =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
-        ?~  uri
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc:ml 'Missing uri in resource response' `[%n rpc-id.pole]))
-        ?~  mym
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc:ml 'Missing mimeType in resource response' `[%n rpc-id.pole]))
-        ?~  txt
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc:ml 'Missing text in resource response' `[%n rpc-id.pole]))
-        :_  this
-        %:  send-event
-            eyre-id.pole
-            %-  result:rpc:ml
-            :-  %-  pairs:enjs:format
-                :~  :-  'contents'
-                    :-  %a
-                    :~  %-  pairs:enjs:format
-                        :~  ['uri' s+u.uri]
-                            ['mimeType' s+u.mym]
-                            ['text' s+u.txt]
-                        ==
-                    ==
+        ::
+            %result
+          %-  pairs:enjs:format
+          :~  ['id' n+rpc-id.pole]
+              ['jsonrpc' s+'2.0']
+              :-  'result'
+              ?-    response
+                  [%result %structured *]
+                %-  frond:enjs:format
+                ['structuredContent' json.response]
+              ::
+                  [%result %unstructured *]
+                %-  frond:enjs:format
+                :-  'content'
+                :-  %a
+                %+  turn
+                  results.response
+                |=  =result:tool:mcp
+                ^-  json
+                ?-    -.result
+                    %text
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'text']
+                      ['text' s+text.result]
+                  ==
+                ::
+                    %audio
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'audio']
+                      ['data' s+data.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %resource-link
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'resource_link']
+                      ['uri' s+uri.result]
+                      ['name' s+name.result]
+                      ['description' s+desc.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %image
+                  %-  pairs:enjs:format
+                  ::  XX parse annotations
+                  :~  ['type' s+'image']
+                      ['data' s+data.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %resource
+                  ::  XX parse annotations
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'resource']
+                      :-  'resource'
+                      %-  pairs:enjs:format
+                      :~  ['uri' s+uri.result]
+                          ['mimeType' s+mime.result]
+                          ['text' s+text.result]
+                      ==
+                  ==
                 ==
-            `[%n rpc-id.pole]
+              ==
+              ['isError' b+.n]
+          ==
         ==
       ==
+  ::
+      [%response %resource %beam eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+      ::
+        [%clay %writ *]
+      =/  [%clay %writ =riot:clay]  sign-arvo
+      :_  this
+      %:  send-event
+          eyre-id.pole
+          %-  result:rpc
+          :-  rpc-id.pole
+          %-  pairs:enjs:format
+          :~  :-  'contents'
+              :-  %a
+              :~  %-  pairs:enjs:format
+                  %+  welp
+                    :~  ['uri' s+uri.pole]
+                        :-  'text'
+                        :-  %s
+                        ?~  riot
+                          'Failed to fetch file.'
+                        %-  crip
+                        %-  print-tang-to-wain
+                        %-  pretty-file:pf
+                        !<(noun q.r.u.riot)
+                    ==
+                  ?~  riot
+                    ~
+                  :~  ['mimeType' s+(mark-mime p.r.u.riot)]
+                  ==
+              ==
+          ==
+      ==
+    ==
+  ::
+      [%response %resource %scry %clay eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+    ::
+        [%clay %writ *]
+      =/  [%clay %writ =riot:clay]  sign-arvo
+      :_  this
+      %:  send-event
+          eyre-id.pole
+          %-  result:rpc
+          :-  rpc-id.pole
+          %-  pairs:enjs:format
+          :~  :-  'contents'
+              :-  %a
+              :~  %-  pairs:enjs:format
+                  %+  welp
+                    :~  ['uri' s+uri.pole]
+                        :-  'text'
+                        :-  %s
+                        ?~  riot
+                          'Failed to perform Clay scry.'
+                        %-  crip
+                        %-  print-tang-to-wain
+                        %-  pretty-file:pf
+                        !<(noun q.r.u.riot)
+                    ==
+                  ?~  riot
+                    ~
+                  :~  ['mimeType' s+(mark-mime p.r.u.riot)]
+                  ==
+              ==
+          ==
+      ==
+    ==
+  ::
+      [%response %resource %http eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
     ::
         [%iris %http-response *]
-      ?<  ?=(~ und.pole)
-      ?>  ?=([@ta ~] und.pole)
-      =*  uri  -.und.pole
       =/  =client-response:iris  client-response.sign-arvo
       ?+  -.client-response
         :_  this
-        (send-event eyre-id.pole (internal:error:rpc:ml 'Unexpected Iris response type' `[%n rpc-id.pole]))
+        (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Unexpected Iris response type' ~))
       ::
           %finished
         ?~  full-file.client-response
           :_  this
-          (send-event eyre-id.pole (internal:error:rpc:ml 'Empty HTTP response body' `[%n rpc-id.pole]))
+          (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Empty HTTP response body' ~))
         =/  =response-header:http  response-header.client-response
         =/  content-type=@t
           ?~  content-type-header=(get-header:http 'content-type' headers.response-header)
@@ -742,18 +1258,18 @@
         :_  this
         %:  send-event
             eyre-id.pole
-            %-  result:rpc:ml
-            :-  %-  pairs:enjs:format
-                :~  :-  'contents'
-                    :-  %a
-                    :~  %-  pairs:enjs:format
-                        :~  ['uri' s+uri]
-                            ['mimeType' s+content-type]
-                            ['text' s+body-text]
-                        ==
+            %-  result:rpc
+            :-  rpc-id.pole
+            %-  pairs:enjs:format
+            :~  :-  'contents'
+                :-  %a
+                :~  %-  pairs:enjs:format
+                    :~  ['uri' s+uri.pole]
+                        ['mimeType' s+content-type]
+                        ['text' s+body-text]
                     ==
                 ==
-            `[%n rpc-id.pole]
+            ==
         ==
       ==
     ==
