@@ -18,18 +18,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up environment
+      - name: Install Zig 0.15.2
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y pipx
-          pipx ensurepath
-          pipx install peru
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          curl -LO "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz"
+          tar xf zig-x86_64-linux-0.15.2.tar.xz
+          ZIG_DIR=zig-x86_64-linux-0.15.2
+          echo "$(pwd)/$ZIG_DIR" >> $GITHUB_PATH
 
       - name: Build desk
-        run: |
-          chmod +x build.sh
-          bash build.sh
+        run: zig build
 
       - name: Create desk.ship
         run: |
