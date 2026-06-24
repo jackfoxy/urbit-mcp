@@ -688,8 +688,8 @@
                 eyre-id
                 %:  request:error:rpc
                     p.u.id
-                    (crip "Scheme not supported for URI {<u.uri>}")
-                    ~
+                    'Scheme not supported for URI'
+                    `(frond:enjs:format %uri s+u.uri)
             ==  ==
           ::
               %'beam'
@@ -701,8 +701,8 @@
                   eyre-id
                   %:  request:error:rpc
                       p.u.id
-                      (crip "Invalid beam {<u.uri>}")
-                      ~
+                      'Invalid beam'
+                      `(frond:enjs:format %uri s+u.uri)
               ==  ==
             :_  this
             :~  :*  %pass
@@ -738,24 +738,48 @@
               (parse:scry-uri u.uri)
             ?~  parsed-scry-uri
               :_  this
-              (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid scry URI {<u.uri>}") ~))
+              %+  send-event
+                eyre-id
+              %:  request:error:rpc
+                  p.u.id
+                  'Invalid scry URI'
+                  `(frond:enjs:format %uri s+u.uri)
+              ==
             =/  care-segment=@t  (head u.parsed-scry-uri)
             =/  scry-path=path  (slag 1 u.parsed-scry-uri)
             =/  vane=@t  (cut 3 [0 1] care-segment)
             =/  care=@t  (cut 3 [1 1] care-segment)
             ?+    vane
                 :_  this
-                (send-event eyre-id (params:error:rpc p.u.id 'Unsupported vane' ~))
+                %+  send-event
+                  eyre-id
+                %:  params:error:rpc
+                    p.u.id
+                    'Unknown or unsupported vane'
+                    `(frond:enjs:format %vane s+vane)
+                ==
             ::
                 %g
               ?+    care
                   :_  this
-                  (send-event eyre-id (params:error:rpc p.u.id 'Unsupported Gall scry care' ~))
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Unsupported Gall scry care'
+                      `(frond:enjs:format %care s+care)
+                  ==
               ::
                   %x
                 ?.  =(%json (rear scry-path))
                   :_  this
-                  (send-event eyre-id (params:error:rpc p.u.id 'Gall %x scry resource path must end in /json' ~))
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Gall scry resource path must end in /json'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
                 =/  scry-result
                   %-  mule
                   |.
@@ -791,14 +815,26 @@
                 %c
               ?+    care
                   :_  this
-                  (send-event eyre-id (params:error:rpc p.u.id 'Unsupported Clay scry care' ~))
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Unsupported Clay scry care'
+                      `(frond:enjs:format %care s+care)
+                  ==
               ::
                   %x
                 =/  parsed-beam=(unit beam)
                   (de-beam (welp /(scot %p our.bowl) scry-path))
                 ?~  parsed-beam
                   :_  this
-                  (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid Clay scry path {<u.uri>}") ~))
+                  %+  send-event
+                    eyre-id
+                  %:  request:error:rpc
+                      p.u.id
+                      'Invalid Clay scry path'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
                 :_  this
                 :~  :*  %pass
                         /response/resource/scry/clay/[eyre-id]/(scot %ud u.request-id)/[u.uri]
@@ -833,10 +869,22 @@
             `prompt
           ?~  prompt-results
             :_  this
-            (send-event eyre-id (method:error:rpc p.u.id (crip "Prompt {<u.prompt-name>} not found") ~))
+            %+  send-event
+              eyre-id
+            %:  method:error:rpc
+                p.u.id
+                'Prompt not found'
+                `(frond:enjs:format %name s+u.prompt-name)
+            ==
           ?:  (gth 1 (lent prompt-results))
             :_  this
-            (send-event eyre-id (internal:error:rpc p.u.id (crip "Multiple {<u.prompt-name>} prompts found") ~))
+            %+  send-event
+              eyre-id
+            %:  internal:error:rpc
+                p.u.id
+                'Multiple prompts found'
+                `(frond:enjs:format %name s+u.prompt-name)
+            ==
           =/  =prompt:mcp  i.prompt-results
           =/  prompt-args=(map name:argument:prompt:mcp @t)
             %+  fall
@@ -891,9 +939,21 @@
               ~
             `foo
           ?~  tool-results
-            (send-event eyre-id (params:error:rpc p.u.id (crip "Tool {<u.tool-name>} not found") ~))
+            %+  send-event
+              eyre-id
+            %:  params:error:rpc
+                p.u.id
+                'Tool not found'
+                `(frond:enjs:format %name s+u.tool-name)
+            ==
           ?:  (gth 1 (lent tool-results))
-            (send-event eyre-id (internal:error:rpc p.u.id (crip "Multiple {<u.tool-name>} tools found") ~))
+            %+  send-event
+              eyre-id
+            %:  internal:error:rpc
+                p.u.id
+                'Multiple tools found'
+                `(frond:enjs:format %name s+u.tool-name)
+            ==
           =/  arguments=(unit json)  (~(get jo:jut jon) /params/arguments)
           ?~  arguments
             (send-event eyre-id (params:error:rpc p.u.id 'Missing arguments' ~))
