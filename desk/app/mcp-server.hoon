@@ -451,11 +451,9 @@
         (get-header:http 'host' header-list.request.req)
       ?~(h 'localhost' u.h)
     ::
-    ::  Enforce HTTPS outside loopback, and reject browser origins
-    ::  that do not correspond to the local endpoint or our EAuth URL.
+    ::  Reject browser origins that do not correspond to the local
+    ::  endpoint or our EAuth URL.
     =/  local=?  (loopback-authority (trip host))
-    ?.  ?|(secure.req local)
-      [(simple-response eyre-id 400 ~) this]
     =/  origin=(unit @t)
       (get-header:http 'origin' header-list.request.req)
     =/  origin-allowed=?
@@ -473,8 +471,7 @@
       =(u.origin u.eauth)
     ?.  origin-allowed
       [(simple-response eyre-id 403 ~) this]
-    =/  base=@t
-      (rap 3 ?.(secure.req 'http://' 'https://') host ~)
+    =/  base=@t  (rap 3 'http://' host ~)
     ::  RFC 9728 protected-resource metadata at the spec'd path.
     ::  Empty authorization_servers + bearer_methods=header tells
     ::  the client to use the auth header it already has.
