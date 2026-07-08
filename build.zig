@@ -113,6 +113,18 @@ const DeskStep = struct {
 };
 
 pub fn build(b: *std.Build) void {
+    const default_optimize: std.builtin.OptimizeMode = switch (b.release_mode) {
+        .off, .any, .fast => .ReleaseFast,
+        .safe => .ReleaseSafe,
+        .small => .ReleaseSmall,
+    };
+    const optimize = b.option(
+        std.builtin.OptimizeMode,
+        "optimize",
+        "Prioritize performance, safety, or binary size",
+    ) orelse default_optimize;
+    _ = optimize;
+
     const desk = b.option([]const u8, "desk", "After building, replace the desk at this path with /dist contents");
 
     const build_step = DeskStep.create(b, "build desk", .build, desk);
