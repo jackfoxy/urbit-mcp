@@ -159,8 +159,16 @@ fn buildDesk(step: *std.Build.Step, allocator: std.mem.Allocator, install_path: 
         try copyDirContents(allocator, "desk", install_path);
     }
 
+    var import_copies = std.ArrayList(ImportCopy){};
+    var fetches = std.ArrayList(RepoFetch){};
     for (dependencies) |dep| {
-        try importDependency(step, allocator, dep, install_path);
+        try collectDependencyImports(step, allocator, dep, install_path, &import_copies, &fetches);
+    }
+
+    try fetchMissingImports(step, allocator, fetches.items);
+
+    for (import_copies.items) |copy| {
+        try copyFilePath(copy.cache_path, copy.dest_path);
     }
 
     std.debug.print("Built!\n", .{});
@@ -181,67 +189,183 @@ fn clear(step: *std.Build.Step) !void {
     try deleteTreeIfExists(try dependencyCacheRootPath(step));
 }
 
-fn importDependency(
+const ImportCopy = struct {
+    cache_path: []const u8,
+    dest_path: []const u8,
+};
+
+const MissingImport = struct {
+    import_path: []const u8,
+    cache_path: []const u8,
+};
+
+const RepoFetch = struct {
+    repo_path: []const u8,
+    name: []const u8,
+    url: []const u8,
+    commit: []const u8,
+    imports: std.ArrayList(MissingImport),
+};
+
+const ImportFetchTask = struct {
+    repo_path: []const u8,
+    name: []const u8,
+    url: []const u8,
+    commit: []const u8,
+    imports: []const MissingImport,
+    err: ?anyerror = null,
+};
+
+fn collectDependencyImports(
     step: *std.Build.Step,
     allocator: std.mem.Allocator,
     dep: RepoImport,
     install_path: []const u8,
+    import_copies: *std.ArrayList(ImportCopy),
+    fetches: *std.ArrayList(RepoFetch),
 ) !void {
     const repo_path = try repoCachePath(step, dep);
 
     for (dep.paths) |path| {
         const import_path = try prefixedPath(allocator, dep.prefix, path);
         const rel = strippedPath(dep.prefix, path);
-        const source_path = try ensureFileImport(step, dep, repo_path, import_path);
+        const cache_path = try fileImportCachePath(step, dep, import_path);
         const dest_path = try std.fs.path.join(allocator, &.{ install_path, rel });
-        try copyFilePath(source_path, dest_path);
+        try import_copies.append(allocator, .{
+            .cache_path = cache_path,
+            .dest_path = dest_path,
+        });
+
+        if (!pathExists(cache_path)) {
+            try addMissingImport(allocator, fetches, dep, repo_path, import_path, cache_path);
+        }
     }
 }
 
-fn ensureFileImport(
-    step: *std.Build.Step,
+fn addMissingImport(
+    allocator: std.mem.Allocator,
+    fetches: *std.ArrayList(RepoFetch),
     dep: RepoImport,
     repo_path: []const u8,
     import_path: []const u8,
-) ![]const u8 {
-    const allocator = step.owner.allocator;
-    const cache_path = try fileImportCachePath(step, dep, import_path);
-    if (pathExists(cache_path)) return cache_path;
+    cache_path: []const u8,
+) !void {
+    for (fetches.items) |*fetch| {
+        if (std.mem.eql(u8, fetch.repo_path, repo_path)) {
+            try fetch.imports.append(allocator, .{
+                .import_path = import_path,
+                .cache_path = cache_path,
+            });
+            return;
+        }
+    }
 
-    try ensureRepoImport(step, repo_path, dep.name, dep.url, dep.commit, &.{import_path});
+    var imports = std.ArrayList(MissingImport){};
+    try imports.append(allocator, .{
+        .import_path = import_path,
+        .cache_path = cache_path,
+    });
+    try fetches.append(allocator, .{
+        .repo_path = repo_path,
+        .name = dep.name,
+        .url = dep.url,
+        .commit = dep.commit,
+        .imports = imports,
+    });
+}
 
-    const repo_file_path = try std.fs.path.join(allocator, &.{ repo_path, import_path });
-    try copyFilePath(repo_file_path, cache_path);
-    return cache_path;
+fn fetchMissingImports(
+    step: *std.Build.Step,
+    allocator: std.mem.Allocator,
+    fetches: []const RepoFetch,
+) !void {
+    if (fetches.len == 0) return;
+
+    var tasks = try allocator.alloc(ImportFetchTask, fetches.len);
+    var threads = try allocator.alloc(std.Thread, fetches.len);
+    var spawned: usize = 0;
+
+    for (fetches, 0..) |fetch, i| {
+        tasks[i] = .{
+            .repo_path = fetch.repo_path,
+            .name = fetch.name,
+            .url = fetch.url,
+            .commit = fetch.commit,
+            .imports = fetch.imports.items,
+        };
+        threads[i] = std.Thread.spawn(.{}, fetchMissingImportsThread, .{&tasks[i]}) catch |err| {
+            for (threads[0..spawned]) |thread| {
+                thread.join();
+            }
+            return step.fail("failed to spawn import fetch thread: {s}", .{@errorName(err)});
+        };
+        spawned += 1;
+    }
+
+    for (threads[0..spawned]) |thread| {
+        thread.join();
+    }
+
+    for (tasks) |task| {
+        if (task.err) |err| {
+            return step.fail("failed to import {s}: {s}", .{ task.name, @errorName(err) });
+        }
+    }
+}
+
+fn fetchMissingImportsThread(task: *ImportFetchTask) void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    fetchMissingImportsThreadInner(arena.allocator(), task) catch |err| {
+        task.err = err;
+    };
+}
+
+fn fetchMissingImportsThreadInner(
+    allocator: std.mem.Allocator,
+    task: *ImportFetchTask,
+) !void {
+    var paths = std.ArrayList([]const u8){};
+    for (task.imports) |import| {
+        try paths.append(allocator, import.import_path);
+    }
+
+    try ensureRepoImport(allocator, task.repo_path, task.name, task.url, task.commit, paths.items);
+
+    for (task.imports) |import| {
+        const repo_file_path = try std.fs.path.join(allocator, &.{ task.repo_path, import.import_path });
+        try copyFilePath(repo_file_path, import.cache_path);
+    }
 }
 
 fn ensureRepoImport(
-    step: *std.Build.Step,
+    allocator: std.mem.Allocator,
     repo_path: []const u8,
     name: []const u8,
     url: []const u8,
     commit: []const u8,
     paths: []const []const u8,
 ) !void {
-    const git_dir = try std.fs.path.join(step.owner.allocator, &.{ repo_path, ".git" });
+    const git_dir = try std.fs.path.join(allocator, &.{ repo_path, ".git" });
     if (!pathExists(git_dir)) {
         if (std.fs.path.dirname(repo_path)) |parent| {
             try std.fs.cwd().makePath(parent);
         }
         try std.fs.cwd().makePath(repo_path);
         std.debug.print("Importing {s}...\n", .{name});
-        try run(step, &.{ "git", "-C", repo_path, "init" });
-        try run(step, &.{ "git", "-C", repo_path, "remote", "add", "origin", url });
-        try run(step, &.{ "git", "-C", repo_path, "sparse-checkout", "init", "--no-cone" });
+        try run(allocator, &.{ "git", "-C", repo_path, "init" });
+        try run(allocator, &.{ "git", "-C", repo_path, "remote", "add", "origin", url });
+        try run(allocator, &.{ "git", "-C", repo_path, "sparse-checkout", "init", "--no-cone" });
     }
 
-    try setSparseCheckout(step, repo_path, paths);
+    try setSparseCheckout(allocator, repo_path, paths);
 
-    if (!gitHasCommit(step, repo_path, commit)) {
-        try run(step, &.{ "git", "-C", repo_path, "fetch", "--depth", "1", "--filter=blob:none", "origin", commit });
+    if (!gitHasCommit(allocator, repo_path, commit)) {
+        try run(allocator, &.{ "git", "-C", repo_path, "fetch", "--depth", "1", "--filter=blob:none", "origin", commit });
     }
 
-    try run(step, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", commit });
+    try run(allocator, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", commit });
 }
 
 fn dependencyCacheRootPath(step: *std.Build.Step) ![]const u8 {
@@ -350,33 +474,31 @@ fn parseGitVersion(output: []const u8) ?GitVersion {
     };
 }
 
-fn setSparseCheckout(step: *std.Build.Step, repo_path: []const u8, paths: []const []const u8) !void {
+fn setSparseCheckout(allocator: std.mem.Allocator, repo_path: []const u8, paths: []const []const u8) !void {
     var argv = std.ArrayList([]const u8){};
-    try argv.append(step.owner.allocator, "git");
-    try argv.append(step.owner.allocator, "-C");
-    try argv.append(step.owner.allocator, repo_path);
-    try argv.append(step.owner.allocator, "sparse-checkout");
-    try argv.append(step.owner.allocator, "set");
-    try argv.append(step.owner.allocator, "--no-cone");
+    try argv.append(allocator, "git");
+    try argv.append(allocator, "-C");
+    try argv.append(allocator, repo_path);
+    try argv.append(allocator, "sparse-checkout");
+    try argv.append(allocator, "set");
+    try argv.append(allocator, "--no-cone");
     for (paths) |path| {
-        try argv.append(step.owner.allocator, path);
+        try argv.append(allocator, path);
     }
-    try run(step, argv.items);
+    try run(allocator, argv.items);
 }
 
-fn gitHasCommit(step: *std.Build.Step, repo_path: []const u8, commit: []const u8) bool {
-    const commit_ref = std.fmt.allocPrint(step.owner.allocator, "{s}^{{commit}}", .{commit}) catch return false;
-    return runAllowFail(step, &.{ "git", "-C", repo_path, "cat-file", "-e", commit_ref });
+fn gitHasCommit(allocator: std.mem.Allocator, repo_path: []const u8, commit: []const u8) bool {
+    const commit_ref = std.fmt.allocPrint(allocator, "{s}^{{commit}}", .{commit}) catch return false;
+    return runAllowFail(allocator, &.{ "git", "-C", repo_path, "cat-file", "-e", commit_ref });
 }
 
-fn run(step: *std.Build.Step, argv: []const []const u8) !void {
+fn run(allocator: std.mem.Allocator, argv: []const []const u8) !void {
     const result = std.process.Child.run(.{
-        .allocator = step.owner.allocator,
+        .allocator = allocator,
         .argv = argv,
         .max_output_bytes = 256 * 1024,
-    }) catch |err| {
-        return step.fail("failed to run {s}: {s}", .{ argv[0], @errorName(err) });
-    };
+    }) catch |err| return err;
 
     switch (result.term) {
         .Exited => |code| {
@@ -384,20 +506,22 @@ fn run(step: *std.Build.Step, argv: []const []const u8) !void {
             if (result.stderr.len > 0) {
                 std.debug.print("{s}", .{result.stderr});
             }
-            return step.fail("command exited with code {d}: {s}", .{ code, argv[0] });
+            std.debug.print("command exited with code {d}: {s}\n", .{ code, argv[0] });
+            return error.CommandFailed;
         },
         else => {
             if (result.stderr.len > 0) {
                 std.debug.print("{s}", .{result.stderr});
             }
-            return step.fail("command failed: {s}", .{argv[0]});
+            std.debug.print("command failed: {s}\n", .{argv[0]});
+            return error.CommandFailed;
         },
     }
 }
 
-fn runAllowFail(step: *std.Build.Step, argv: []const []const u8) bool {
+fn runAllowFail(allocator: std.mem.Allocator, argv: []const []const u8) bool {
     const result = std.process.Child.run(.{
-        .allocator = step.owner.allocator,
+        .allocator = allocator,
         .argv = argv,
         .max_output_bytes = 256 * 1024,
     }) catch return false;
